@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+.distrai/
+coverage/
+*.tsbuildinfo
+
+# Environment files — never commit secrets
+.env
+.env.*
+!.env.example
+
+# Machine-local Claude Code config (git identity enforcement, etc.) — never commit
+.claude/settings.local.json

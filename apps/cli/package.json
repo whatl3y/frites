@@ -1,0 +1,15 @@
+{
+  "name": "@distrai/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "bin": {
+    "distrai": "./src/index.ts"
+  },
+  "dependencies": {
+    "@distrai/agents": "workspace:*",
+    "@distrai/core": "workspace:*",
+    "@distrai/isolation": "workspace:*"
+  }
+}

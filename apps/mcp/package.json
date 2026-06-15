@@ -1,0 +1,17 @@
+{
+  "name": "@distrai/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "bin": {
+    "distrai-mcp": "./src/index.ts"
+  },
+  "dependencies": {
+    "@distrai/agents": "workspace:*",
+    "@distrai/core": "workspace:*",
+    "@distrai/isolation": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  }
+}
