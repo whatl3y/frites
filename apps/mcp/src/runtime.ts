@@ -3,20 +3,20 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type AgentSpec,
-  type DistraiConfig,
+  type FritesConfig,
   type EngineDeps,
   type EngineEvent,
   type RunResult,
   detectOracle,
   diffSize,
   runOracle,
-} from "@distrai/core";
-import { defaultRunners, makeRunAgent } from "@distrai/agents";
-import { WorktreeManager } from "@distrai/isolation";
+} from "@frites/core";
+import { defaultRunners, makeRunAgent } from "@frites/agents";
+import { WorktreeManager } from "@frites/isolation";
 
 export async function buildEngineDeps(
   repoPath: string,
-  config: DistraiConfig,
+  config: FritesConfig,
   signal?: AbortSignal,
 ): Promise<EngineDeps> {
   const oracleCommands = await detectOracle(repoPath, { ...config.oracle });
@@ -26,7 +26,7 @@ export async function buildEngineDeps(
       runners: defaultRunners,
       config,
       passApiKeys:
-        config.passApiKeys || process.env.DISTRAI_PASS_API_KEYS === "1",
+        config.passApiKeys || process.env.FRITES_PASS_API_KEYS === "1",
     }),
     runOracle,
     oracleCommands,
@@ -58,7 +58,7 @@ export async function persistRun(
   repoPath: string,
   result: RunResult,
 ): Promise<{ dir: string; files: Array<{ agentId: string; path: string }> }> {
-  const dir = join(repoPath, ".distrai", "runs", result.runId);
+  const dir = join(repoPath, ".frites", "runs", result.runId);
   await mkdir(dir, { recursive: true });
   const files: Array<{ agentId: string; path: string }> = [];
   for (const c of result.candidates) {
@@ -77,7 +77,7 @@ export async function readResult(
   runId: string,
 ): Promise<RunResult> {
   const raw = await readFile(
-    join(repoPath, ".distrai", "runs", runId, "result.json"),
+    join(repoPath, ".frites", "runs", runId, "result.json"),
     "utf8",
   );
   return JSON.parse(raw) as RunResult;
@@ -131,7 +131,7 @@ export function toStructured(result: RunResult): Record<string, unknown> {
 export function formatResultText(result: RunResult): string {
   const oracleById = new Map(result.oracle.map((o) => [o.agentId, o]));
   const lines: string[] = [];
-  lines.push(`# distrai run ${result.runId} — decision: ${result.decision}`);
+  lines.push(`# frites run ${result.runId} — decision: ${result.decision}`);
   lines.push("");
   lines.push(result.rationale);
   lines.push("");
@@ -158,7 +158,7 @@ export function formatResultText(result: RunResult): string {
   lines.push("");
   lines.push(
     `Review the linked diffs. To land the recommended one on a fresh branch, call ` +
-      `\`distrai_apply\` with runId="${result.runId}".`,
+      `\`frites_apply\` with runId="${result.runId}".`,
   );
   return lines.join("\n");
 }

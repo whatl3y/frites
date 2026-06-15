@@ -1,7 +1,7 @@
 // Structured, leveled, turn-scoped logging for the gateway. Writes one line per record to
-// stdout so it lands in the service's StandardOutPath (~/.distrai/gateway.log) — which is what
-// `distrai logs` tails — and is visible in the terminal when run in the foreground. Human format
-// by default; set DISTRAI_LOG_JSON=1 for newline-delimited JSON.
+// stdout so it lands in the service's StandardOutPath (~/.frites/gateway.log) — which is what
+// `frites logs` tails — and is visible in the terminal when run in the foreground. Human format
+// by default; set FRITES_LOG_JSON=1 for newline-delimited JSON.
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -12,9 +12,9 @@ export function isLogLevel(s: unknown): s is LogLevel {
   return typeof s === "string" && s in ORDER;
 }
 
-/** Resolve the effective level: DISTRAI_LOG_LEVEL env wins, then config, else "info". */
+/** Resolve the effective level: FRITES_LOG_LEVEL env wins, then config, else "info". */
 export function resolveLogLevel(configLevel?: string): LogLevel {
-  const env = process.env.DISTRAI_LOG_LEVEL?.toLowerCase();
+  const env = process.env.FRITES_LOG_LEVEL?.toLowerCase();
   if (isLogLevel(env)) return env;
   if (isLogLevel(configLevel)) return configLevel;
   return "info";
@@ -47,7 +47,7 @@ export interface LoggerOptions {
 
 export function createLogger(opts: LoggerOptions = {}): Logger {
   const level = opts.level ?? "info";
-  const json = opts.json ?? process.env.DISTRAI_LOG_JSON === "1";
+  const json = opts.json ?? process.env.FRITES_LOG_JSON === "1";
   const write = opts.write ?? ((line: string) => process.stdout.write(`${line}\n`));
   const now = opts.now ?? (() => new Date().toISOString());
   const base = opts.base ?? {};

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertDepth, buildChildEnv } from "@distrai/agents";
+import { assertDepth, buildChildEnv } from "@frites/agents";
 
 describe("buildChildEnv", () => {
   it("scrubs base-URL vars, withholds API keys, and bumps depth", () => {
@@ -21,8 +21,8 @@ describe("buildChildEnv", () => {
     expect(env.SOMETHING_ELSE).toBeUndefined(); // not on allowlist
     expect(env.HOME).toBe("/home/u");
     expect(env.PATH).toBe("/usr/bin");
-    expect(env.DISTRAI_DEPTH).toBe("1");
-    expect(env.DISTRAI_CHILD).toBe("1");
+    expect(env.FRITES_DEPTH).toBe("1");
+    expect(env.FRITES_CHILD).toBe("1");
   });
 
   it("passes API keys only when asked, but never lets a base-URL through extraEnv", () => {

@@ -1,14 +1,14 @@
 {
-  "name": "@distrai/gateway",
+  "name": "@frites/gateway",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "bin": {
-    "distrai-gateway": "./src/index.ts"
+    "frites-gateway": "./src/index.ts"
   },
   "dependencies": {
-    "@distrai/agents": "workspace:*",
-    "@distrai/core": "workspace:*"
+    "@frites/agents": "workspace:*",
+    "@frites/core": "workspace:*"
   }
 }

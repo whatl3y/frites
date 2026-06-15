@@ -23,34 +23,34 @@ importers:
 
   apps/cli:
     dependencies:
-      '@distrai/agents':
+      '@frites/agents':
         specifier: workspace:*
         version: link:../../packages/agents
-      '@distrai/core':
+      '@frites/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@distrai/isolation':
+      '@frites/isolation':
         specifier: workspace:*
         version: link:../../packages/isolation
 
   apps/gateway:
     dependencies:
-      '@distrai/agents':
+      '@frites/agents':
         specifier: workspace:*
         version: link:../../packages/agents
-      '@distrai/core':
+      '@frites/core':
         specifier: workspace:*
         version: link:../../packages/core
 
   apps/mcp:
     dependencies:
-      '@distrai/agents':
+      '@frites/agents':
         specifier: workspace:*
         version: link:../../packages/agents
-      '@distrai/core':
+      '@frites/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@distrai/isolation':
+      '@frites/isolation':
         specifier: workspace:*
         version: link:../../packages/isolation
       '@modelcontextprotocol/sdk':
@@ -62,7 +62,7 @@ importers:
 
   packages/agents:
     dependencies:
-      '@distrai/core':
+      '@frites/core':
         specifier: workspace:*
         version: link:../core
 
@@ -74,7 +74,7 @@ importers:
 
   packages/isolation:
     dependencies:
-      '@distrai/core':
+      '@frites/core':
         specifier: workspace:*
         version: link:../core
 

@@ -7,9 +7,9 @@ import type {
   AgentRunOutput,
   AgentSpec,
   ChildKind,
-  DistraiConfig,
+  FritesConfig,
   RunAgentFn,
-} from "@distrai/core";
+} from "@frites/core";
 import { assertDepth, buildChildEnv, currentDepth } from "./env-sandbox";
 
 export interface RunAccumulator {
@@ -146,7 +146,7 @@ function spawnAndStream(
 
 export interface MakeRunAgentOptions {
   runners: CliRunnerDef[];
-  config: DistraiConfig;
+  config: FritesConfig;
   passApiKeys?: boolean;
 }
 
@@ -180,7 +180,7 @@ export function makeRunAgent(opts: MakeRunAgentOptions): RunAgentFn {
     };
     const timeoutMs = effSpec.timeoutMs ?? opts.config.perChildTimeoutMs;
     const argv = def.buildArgv(effSpec, ctx);
-    const logPath = join(tmpdir(), `distrai-${spec.id}-${Date.now()}.log`);
+    const logPath = join(tmpdir(), `frites-${spec.id}-${Date.now()}.log`);
     return spawnAndStream(def, argv, ctx, env, timeoutMs, logPath);
   };
 }

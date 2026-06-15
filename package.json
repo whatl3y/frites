@@ -1,5 +1,5 @@
 {
-  "name": "distrai",
+  "name": "frites",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "mcp": "tsx apps/mcp/src/index.ts",
     "gateway": "tsx apps/gateway/src/index.ts",
-    "distrai": "tsx apps/cli/src/index.ts",
+    "frites": "tsx apps/cli/src/index.ts",
     "eval": "tsx eval/value-gate.ts",
     "bench": "tsx eval/bench-matrix.ts"
   },

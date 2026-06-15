@@ -22,16 +22,16 @@ import {
   starterConfig,
   unsetByPath,
   writeConfigFile,
-} from "@distrai/core";
-import { defaultRunners, makeRunAgent } from "@distrai/agents";
-import { WorktreeManager } from "@distrai/isolation";
+} from "@frites/core";
+import { defaultRunners, makeRunAgent } from "@frites/agents";
+import { WorktreeManager } from "@frites/isolation";
 import { existsSync } from "node:fs";
 import { runLogs, runService } from "./service";
 
 // ── entrypoint dispatch ──
 
 async function main(): Promise<void> {
-  // `pnpm distrai -- config …` forwards the `--` separator literally as argv[0]; drop it
+  // `pnpm frites -- config …` forwards the `--` separator literally as argv[0]; drop it
   // so subcommand dispatch (and `--flags`) work whether or not pnpm injected it.
   const raw = process.argv.slice(2);
   const argv = raw[0] === "--" ? raw.slice(1) : raw;
@@ -50,17 +50,17 @@ async function main(): Promise<void> {
 function printTopUsage(): void {
   console.error(
     [
-      "distrai — multi-agent coding council",
+      "frites — multi-agent coding council",
       "",
-      'Run:     distrai "<task>" [--repo path] [--n N] [--agents claude,codex] [--accept ...] [--base ref] [--apply]',
-      "Config:  distrai config <init|show|get|set|unset|validate|path> [--global] [--repo path]",
-      "Service: distrai service <install|uninstall|restart|status|logs> [--port N]",
-      "Logs:    distrai logs [-f|--follow] [-n N] [--level debug|info|warn|error]",
+      'Run:     frites "<task>" [--repo path] [--n N] [--agents claude,codex] [--accept ...] [--base ref] [--apply]',
+      "Config:  frites config <init|show|get|set|unset|validate|path> [--global] [--repo path]",
+      "Service: frites service <install|uninstall|restart|status|logs> [--port N]",
+      "Logs:    frites logs [-f|--follow] [-n N] [--level debug|info|warn|error]",
     ].join("\n"),
   );
 }
 
-// ── `distrai config ...` ──
+// ── `frites config ...` ──
 
 interface ConfigArgs {
   sub: string;
@@ -135,7 +135,7 @@ function runConfig(argv: string[]): void {
     }
     case "get": {
       const key = args.positional[0];
-      if (!key) return fail("usage: distrai config get <key>");
+      if (!key) return fail("usage: frites config get <key>");
       const cfg = loadConfig(repo) as unknown as Record<string, unknown>;
       const v = getByPath(cfg, key);
       console.log(typeof v === "string" ? v : JSON.stringify(v, null, 2));
@@ -145,7 +145,7 @@ function runConfig(argv: string[]): void {
       const key = args.positional[0];
       const rawValue = args.positional[1];
       if (!key || rawValue === undefined) {
-        return fail('usage: distrai config set <key> <value>  (e.g. set defaultN 3)');
+        return fail('usage: frites config set <key> <value>  (e.g. set defaultN 3)');
       }
       const file = readConfigFile(targetPath) ?? {};
       const next = setByPath(file, key, parseConfigValue(rawValue));
@@ -156,7 +156,7 @@ function runConfig(argv: string[]): void {
     }
     case "unset": {
       const key = args.positional[0];
-      if (!key) return fail("usage: distrai config unset <key>");
+      if (!key) return fail("usage: frites config unset <key>");
       const file = readConfigFile(targetPath) ?? {};
       const next = unsetByPath(file, key);
       assertValid(next);
@@ -182,7 +182,7 @@ function runConfig(argv: string[]): void {
     }
     default:
       return fail(
-        "usage: distrai config <init|show|get|set|unset|validate|path> [--global] [--repo path] [--force]",
+        "usage: frites config <init|show|get|set|unset|validate|path> [--global] [--repo path] [--force]",
       );
   }
 }
@@ -204,7 +204,7 @@ function fail(msg: string): never {
   process.exit(1);
 }
 
-// ── `distrai run "<task>"` ──
+// ── `frites run "<task>"` ──
 
 interface RunArgs {
   task: string;
@@ -278,7 +278,7 @@ async function runTask(argv: string[]): Promise<void> {
       runners: defaultRunners,
       config,
       passApiKeys:
-        config.passApiKeys || process.env.DISTRAI_PASS_API_KEYS === "1",
+        config.passApiKeys || process.env.FRITES_PASS_API_KEYS === "1",
     }),
     runOracle,
     oracleCommands,
@@ -300,7 +300,7 @@ async function runTask(argv: string[]): Promise<void> {
     if (line) console.error(line);
   });
 
-  console.log(`\n=== distrai run ${result.runId} — ${result.decision} ===`);
+  console.log(`\n=== frites run ${result.runId} — ${result.decision} ===`);
   console.log(result.rationale);
   for (const c of result.candidates) {
     console.log(
@@ -323,6 +323,6 @@ async function runTask(argv: string[]): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error("distrai failed:", err instanceof Error ? err.message : err);
+  console.error("frites failed:", err instanceof Error ? err.message : err);
   process.exit(1);
 });

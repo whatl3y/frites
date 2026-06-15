@@ -57,14 +57,14 @@ describe("json rendering", () => {
 
 describe("resolveLogLevel", () => {
   it("env wins over config, config over default", () => {
-    const prev = process.env.DISTRAI_LOG_LEVEL;
-    delete process.env.DISTRAI_LOG_LEVEL;
+    const prev = process.env.FRITES_LOG_LEVEL;
+    delete process.env.FRITES_LOG_LEVEL;
     expect(resolveLogLevel(undefined)).toBe("info");
     expect(resolveLogLevel("warn")).toBe("warn");
-    process.env.DISTRAI_LOG_LEVEL = "debug";
+    process.env.FRITES_LOG_LEVEL = "debug";
     expect(resolveLogLevel("warn")).toBe("debug");
-    if (prev === undefined) delete process.env.DISTRAI_LOG_LEVEL;
-    else process.env.DISTRAI_LOG_LEVEL = prev;
+    if (prev === undefined) delete process.env.FRITES_LOG_LEVEL;
+    else process.env.FRITES_LOG_LEVEL = prev;
   });
 
   it("ignores garbage levels", () => {

@@ -1,4 +1,4 @@
-/** The kinds of child agent distrai can dispatch. Extensible (api-* children land later). */
+/** The kinds of child agent frites can dispatch. Extensible (api-* children land later). */
 export type ChildKind = "claude-cli" | "codex-cli";
 
 export interface AgentSpec {

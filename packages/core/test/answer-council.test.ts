@@ -4,7 +4,7 @@ import {
   llmJudgeFanOut,
   resolveConfig,
   runAnswerCouncil,
-} from "@distrai/core";
+} from "@frites/core";
 
 describe("decideFanOut", () => {
   it("respects never/always", () => {

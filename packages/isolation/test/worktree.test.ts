@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { WorktreeManager } from "@distrai/isolation";
+import { WorktreeManager } from "@frites/isolation";
 
 const repos: string[] = [];
 
@@ -13,7 +13,7 @@ function git(cwd: string, args: string[]): void {
 }
 
 function makeRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), "distrai-it-"));
+  const dir = mkdtempSync(join(tmpdir(), "frites-it-"));
   repos.push(dir);
   git(dir, ["init", "-q"]);
   git(dir, ["config", "user.email", "t@t.t"]);
@@ -23,7 +23,7 @@ function makeRepo(): string {
   git(dir, ["config", "commit.gpgsign", "false"]);
   git(dir, ["config", "tag.gpgsign", "false"]);
   writeFileSync(join(dir, "foo.txt"), "hello\n");
-  writeFileSync(join(dir, ".gitignore"), ".distrai/\n");
+  writeFileSync(join(dir, ".gitignore"), ".frites/\n");
   git(dir, ["add", "-A"]);
   git(dir, ["commit", "-q", "-m", "init"]);
   return dir;
@@ -65,13 +65,13 @@ describe("WorktreeManager (real git)", () => {
 
     // Apply the captured diff onto a fresh branch on the (clean) repo.
     const { branch } = await wt.applyToBranch(repo, "run1", diff);
-    expect(branch).toBe("distrai/apply/run1");
+    expect(branch).toBe("frites/apply/run1");
     expect(existsSync(join(repo, "src", "bar.ts"))).toBe(true);
     expect(readFileSync(join(repo, "foo.txt"), "utf8")).toBe("hello world\n");
   });
 
   it("refuses non-git directories with a helpful error", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "distrai-nogit-"));
+    const dir = mkdtempSync(join(tmpdir(), "frites-nogit-"));
     repos.push(dir);
     const wt = new WorktreeManager();
     await expect(wt.resolveBase(dir)).rejects.toThrow(/not a git repository/);

@@ -1,4 +1,4 @@
-import type { ModelPricing } from "@distrai/core";
+import type { ModelPricing } from "@frites/core";
 import { describe, expect, it } from "vitest";
 import { estimateCostUsd, pricingFor } from "../src/pricing";
 

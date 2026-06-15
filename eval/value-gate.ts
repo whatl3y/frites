@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 /**
- * distrai value-gate: does fan-out + synthesis actually beat a single agent on coding tasks?
+ * frites value-gate: does fan-out + synthesis actually beat a single agent on coding tasks?
  *
  * For each fixture × each condition (single vs council), it starts the gateway with that config,
  * runs the task through a REAL `claude` client (ANTHROPIC_BASE_URL → gateway, bypassPermissions),
@@ -73,7 +73,7 @@ function writeFiles(dir: string, files: Record<string, string>): void {
 function setupRepo(fx: Fixture): string {
   const dir = mkdtempSync(join(tmpdir(), `vg-${fx.name}-`));
   writeFiles(dir, fx.files);
-  writeFileSync(join(dir, ".gitignore"), ".distrai/\nnode_modules/\n");
+  writeFileSync(join(dir, ".gitignore"), ".frites/\nnode_modules/\n");
   const git = (args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" });
   git(["init", "-q"]);
   git(["config", "user.email", "vg@vg.vg"]);
@@ -90,9 +90,9 @@ function startGateway(configPath: string, port: number) {
   const proc = spawn(tsxBin, [join(REPO, "apps", "gateway", "src", "index.ts")], {
     env: {
       ...process.env,
-      DISTRAI_GLOBAL_CONFIG: configPath,
-      DISTRAI_GATEWAY_PORT: String(port),
-      DISTRAI_GATEWAY_HOST: "127.0.0.1",
+      FRITES_GLOBAL_CONFIG: configPath,
+      FRITES_GATEWAY_PORT: String(port),
+      FRITES_GATEWAY_HOST: "127.0.0.1",
       // ensure the gateway itself is never pointed at itself
       ANTHROPIC_BASE_URL: "",
     },
@@ -130,7 +130,7 @@ function runClient(repoDir: string, port: number, task: string): { numTurns: num
         env: {
           ...process.env,
           ANTHROPIC_BASE_URL: `http://127.0.0.1:${port}`,
-          ANTHROPIC_AUTH_TOKEN: "distrai",
+          ANTHROPIC_AUTH_TOKEN: "frites",
         },
         timeout: 600000,
         maxBuffer: 64 * 1024 * 1024,
@@ -212,7 +212,7 @@ for (const fx of FIXTURES) {
   }
 }
 
-console.log("\n=== distrai value-gate results ===");
+console.log("\n=== frites value-gate results ===");
 console.log("fixture            condition  passed  turns  cost($)  dur(s)");
 for (const r of rows) {
   console.log(

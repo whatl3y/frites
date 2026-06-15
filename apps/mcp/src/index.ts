@@ -2,8 +2,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { type Task, loadConfig, runEngine } from "@distrai/core";
-import { WorktreeManager } from "@distrai/isolation";
+import { type Task, loadConfig, runEngine } from "@frites/core";
+import { WorktreeManager } from "@frites/isolation";
 import {
   buildEngineDeps,
   describeEvent,
@@ -14,16 +14,16 @@ import {
   toStructured,
 } from "./runtime";
 
-const server = new McpServer({ name: "distrai", version: "0.0.0" });
+const server = new McpServer({ name: "frites", version: "0.0.0" });
 
 server.registerTool(
-  "distrai_implement",
+  "frites_implement",
   {
-    title: "distrai: implement via an agent council",
+    title: "frites: implement via an agent council",
     description:
       "Dispatch a coding task to multiple full agents (claude/codex) in isolated git " +
       "worktrees, filter them with the repo's tests, and return one vetted diff plus a " +
-      "comparison. Long-running (minutes). Review the result, then call distrai_apply.",
+      "comparison. Long-running (minutes). Review the result, then call frites_apply.",
     inputSchema: {
       task: z.string().describe("What to implement or fix"),
       repoPath: z.string().describe("Absolute path to the target git repository"),
@@ -75,7 +75,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `distrai failed: ${err instanceof Error ? err.message : String(err)}`,
+            text: `frites failed: ${err instanceof Error ? err.message : String(err)}`,
           },
         ],
         isError: true,
@@ -85,12 +85,12 @@ server.registerTool(
 );
 
 server.registerTool(
-  "distrai_apply",
+  "frites_apply",
   {
-    title: "distrai: apply a vetted result",
+    title: "frites: apply a vetted result",
     description:
-      "Apply the recommended diff from a previous distrai_implement run onto a FRESH " +
-      "branch (distrai/<runId>). Requires a clean working tree. Never pushes.",
+      "Apply the recommended diff from a previous frites_implement run onto a FRESH " +
+      "branch (frites/<runId>). Requires a clean working tree. Never pushes.",
     inputSchema: {
       runId: z.string(),
       repoPath: z.string(),
@@ -140,10 +140,10 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // stdout is the MCP channel — all logging must go to stderr.
-  console.error("distrai MCP server running on stdio");
+  console.error("frites MCP server running on stdio");
 }
 
 main().catch((err) => {
-  console.error("distrai MCP server failed to start:", err);
+  console.error("frites MCP server failed to start:", err);
   process.exit(1);
 });

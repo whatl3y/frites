@@ -6,7 +6,7 @@ import {
   type Task,
   resolveConfig,
   runEngine,
-} from "@distrai/core";
+} from "@frites/core";
 
 interface DiffEntry {
   diff: string;

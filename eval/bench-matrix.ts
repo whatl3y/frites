@@ -1,9 +1,9 @@
 #!/usr/bin/env -S npx tsx
 /**
- * distrai bench-matrix: run an agentic-coding harness against many distrai configs (and raw-model
+ * frites bench-matrix: run an agentic-coding harness against many frites configs (and raw-model
  * baselines) on the SAME tasks, then table accuracy + tokens + cost + latency side by side.
  *
- * This script owns the DISTRAI side only. For each condition it writes a temp config, starts a
+ * This script owns the FRITES side only. For each condition it writes a temp config, starts a
  * gateway on an isolated port, waits for readiness, points the harness at it, runs the harness,
  * reads back a results JSON, then tears the gateway down. The harness itself is a pluggable command
  * (default: Aider polyglot via eval/harness/aider-polyglot.sh) so this file never hard-codes a
@@ -15,20 +15,20 @@
  *   pnpm bench -- --auth both          # run every combo under BOTH OAuth and metered API-key auth
  *   pnpm bench -- --combos claude,claude+codex --auth oauth
  *   pnpm bench -- --only "claude+codex / oauth" --num-tests 5
- *   pnpm bench -- --no-raw             # skip the raw-model baselines (distrai conditions only)
+ *   pnpm bench -- --no-raw             # skip the raw-model baselines (frites conditions only)
  *
- * Harness contract — the command in DISTRAI_BENCH_HARNESS (default below) is invoked once per
- * condition with these env vars, and MUST write a JSON object to $DISTRAI_BENCH_RESULT:
+ * Harness contract — the command in FRITES_BENCH_HARNESS (default below) is invoked once per
+ * condition with these env vars, and MUST write a JSON object to $FRITES_BENCH_RESULT:
  *   {"pass_rate_1": number, "pass_rate_2": number, "percent_well_formed": number,
  *    "cost_usd": number, "n": number, "prompt_tokens"?: number, "completion_tokens"?: number,
  *    "notes"?: string}
  * Env the harness receives:
- *   DISTRAI_BENCH_URL        gateway base url (EMPTY string for raw-model passthrough conditions)
- *   DISTRAI_BENCH_MODEL      the --model value to hand the harness
- *   DISTRAI_BENCH_RESULT     path to write the results JSON
- *   DISTRAI_BENCH_NUM_TESTS  exercise cap (from --num-tests; empty = harness default)
- *   DISTRAI_BENCH_CONDITION  condition name (for run labelling)
- *   ANTHROPIC_BASE_URL / ANTHROPIC_API_BASE / ANTHROPIC_API_KEY  (distrai conditions only)
+ *   FRITES_BENCH_URL        gateway base url (EMPTY string for raw-model passthrough conditions)
+ *   FRITES_BENCH_MODEL      the --model value to hand the harness
+ *   FRITES_BENCH_RESULT     path to write the results JSON
+ *   FRITES_BENCH_NUM_TESTS  exercise cap (from --num-tests; empty = harness default)
+ *   FRITES_BENCH_CONDITION  condition name (for run labelling)
+ *   ANTHROPIC_BASE_URL / ANTHROPIC_API_BASE / ANTHROPIC_API_KEY  (frites conditions only)
  *   ...plus any per-condition `env` overrides (used to point raw baselines at real APIs)
  */
 import { execFileSync, spawn } from "node:child_process";
@@ -40,20 +40,20 @@ import { fileURLToPath } from "node:url";
 const REPO = resolve(fileURLToPath(import.meta.url), "../.."); // <repo>/eval/bench-matrix.ts → <repo>
 
 /**
- * A condition is one row of the comparison. `config` present → spin up a distrai gateway with it and
+ * A condition is one row of the comparison. `config` present → spin up a frites gateway with it and
  * point the harness at the gateway. `config` absent → a raw-model passthrough baseline: no gateway,
  * the harness talks to the real provider (creds come from the ambient env / the condition's `env`).
  *
- * NB: distrai picks the child model from `config.defaultAgents`, NOT from the request `model` field
- * (apps/gateway/src/index.ts: `model = body.model ?? "distrai"` is a label only). So vary the model
- * MIX via the agent combos below, not via `model`. And never give a distrai condition a `model`
+ * NB: frites picks the child model from `config.defaultAgents`, NOT from the request `model` field
+ * (apps/gateway/src/index.ts: `model = body.model ?? "frites"` is a label only). So vary the model
+ * MIX via the agent combos below, not via `model`. And never give a frites condition a `model`
  * containing haiku/small/fast — that string trips the single-agent background short-circuit.
  */
 interface Condition {
   name: string;
-  /** Value handed to the harness as --model / DISTRAI_BENCH_MODEL. */
+  /** Value handed to the harness as --model / FRITES_BENCH_MODEL. */
   model: string;
-  /** distrai config (written to a temp file, loaded via DISTRAI_GLOBAL_CONFIG). Omit → passthrough. */
+  /** frites config (written to a temp file, loaded via FRITES_GLOBAL_CONFIG). Omit → passthrough. */
   config?: Record<string, unknown>;
   /** Extra env for the harness (e.g. point a raw baseline at the real OpenAI/Anthropic API). */
   env?: Record<string, string>;
@@ -103,7 +103,7 @@ const AGENT_COMBOS: Record<string, Array<Record<string, unknown>>> = {
 const AUTH_MODES: Record<string, boolean> = { oauth: false, apikey: true };
 
 // ── cost attribution (opt-in via --price) ──
-// distrai's gateway estimates a child's spend from per-model $/Mtoken rates ONLY when that child has
+// frites's gateway estimates a child's spend from per-model $/Mtoken rates ONLY when that child has
 // an explicit model matching a rate key AND it reports no cost itself. claude self-reports cost (even
 // on subscription), so it needs no rate; codex reports NOTHING on the ChatGPT/OAuth backend, so
 // without this its contribution shows as $0. Enabling --price (a) stamps the codex children with an
@@ -111,14 +111,14 @@ const AUTH_MODES: Record<string, boolean> = { oauth: false, apikey: true };
 // ⚠️ Provider prices drift and --price PINS codex to CHILD_MODELS["codex-cli"] — set the model id and
 // rates to your real setup (constants below, or the env vars) before trusting the cost column.
 const CHILD_MODELS: Record<string, string | undefined> = {
-  "claude-cli": process.env.DISTRAI_BENCH_CLAUDE_MODEL, // undefined → CLI default (claude self-reports)
-  "codex-cli": process.env.DISTRAI_BENCH_CODEX_MODEL ?? "gpt-5.5",
+  "claude-cli": process.env.FRITES_BENCH_CLAUDE_MODEL, // undefined → CLI default (claude self-reports)
+  "codex-cli": process.env.FRITES_BENCH_CODEX_MODEL ?? "gpt-5.5",
 };
 const PRICING: Record<string, { inputPerMtok: number; outputPerMtok: number }> = {
-  // $ per million tokens, keyed by model id (distrai prefix-matches). EDIT to your provider's rates.
+  // $ per million tokens, keyed by model id (frites prefix-matches). EDIT to your provider's rates.
   "gpt-5.5": {
-    inputPerMtok: Number(process.env.DISTRAI_BENCH_CODEX_IN ?? "1.25"),
-    outputPerMtok: Number(process.env.DISTRAI_BENCH_CODEX_OUT ?? "10"),
+    inputPerMtok: Number(process.env.FRITES_BENCH_CODEX_IN ?? "1.25"),
+    outputPerMtok: Number(process.env.FRITES_BENCH_CODEX_OUT ?? "10"),
   },
 };
 
@@ -129,10 +129,10 @@ const RAW_BASELINES: Condition[] = [
   { name: "raw-gpt", model: "openai/gpt-5.5" },
 ];
 
-/** Build a distrai condition for one (combo, auth) pair. fanOutScope stays first-turn (one council
+/** Build a frites condition for one (combo, auth) pair. fanOutScope stays first-turn (one council
  *  per task, then a single agent through tool continuations; on the tool-less Aider harness scope
  *  has no effect anyway — see eval/README.md for the per-turn variant). */
-function distraiCondition(comboName: string, agents: Array<Record<string, unknown>>, authName: string): Condition {
+function fritesCondition(comboName: string, agents: Array<Record<string, unknown>>, authName: string): Condition {
   // Under --price, stamp each child with the model whose rate we'll attribute (so codex gets priced).
   const childAgents = PRICE
     ? agents.map((a) => {
@@ -151,7 +151,7 @@ function distraiCondition(comboName: string, agents: Array<Record<string, unknow
   if (PRICE) config.pricing = PRICING;
   return {
     name: `${comboName} / ${authName}`,
-    model: "distrai-council", // a LABEL only; the real mix is `childAgents` (never haiku/small/fast)
+    model: "frites-council", // a LABEL only; the real mix is `childAgents` (never haiku/small/fast)
     config,
   };
 }
@@ -165,7 +165,7 @@ function flag(name: string): string | undefined {
 const DRY_RUN = argv.includes("--dry-run");
 const NO_RAW = argv.includes("--no-raw");
 const PRICE = argv.includes("--price"); // estimate codex spend from PRICING so cost($) is complete
-const TIMEOUT_MIN = Number(process.env.DISTRAI_BENCH_TIMEOUT_MIN ?? "90"); // per-condition wall-clock ceiling
+const TIMEOUT_MIN = Number(process.env.FRITES_BENCH_TIMEOUT_MIN ?? "90"); // per-condition wall-clock ceiling
 const ONLY = flag("--only")?.split(",").map((s) => s.trim()).filter(Boolean);
 const NUM_TESTS = flag("--num-tests") ?? "";
 // --auth oauth | apikey | both (default oauth — the no-key path; pass `both` for the comparison).
@@ -190,15 +190,15 @@ for (const cn of comboNames) {
     process.stderr.write(`[bench] unknown --combos "${cn}" (have: ${Object.keys(AGENT_COMBOS).join(", ")})\n`);
     process.exit(1);
   }
-  for (const an of authNames) generated.push(distraiCondition(cn, agents, an));
+  for (const an of authNames) generated.push(fritesCondition(cn, agents, an));
 }
 
-// The harness command. Default to the bundled Aider adapter; override with DISTRAI_BENCH_HARNESS.
+// The harness command. Default to the bundled Aider adapter; override with FRITES_BENCH_HARNESS.
 // In --dry-run we swap in a stub that writes zeros, so the matrix wiring can be exercised for free.
 const DEFAULT_HARNESS = join(REPO, "eval", "harness", "aider-polyglot.sh");
 const HARNESS = DRY_RUN
-  ? `node -e 'require("fs").writeFileSync(process.env.DISTRAI_BENCH_RESULT,JSON.stringify({pass_rate_1:0,pass_rate_2:0,percent_well_formed:0,cost_usd:0,n:0,prompt_tokens:0,completion_tokens:0,notes:"dry-run stub"}))'`
-  : (process.env.DISTRAI_BENCH_HARNESS ?? `bash ${DEFAULT_HARNESS}`);
+  ? `node -e 'require("fs").writeFileSync(process.env.FRITES_BENCH_RESULT,JSON.stringify({pass_rate_1:0,pass_rate_2:0,percent_well_formed:0,cost_usd:0,n:0,prompt_tokens:0,completion_tokens:0,notes:"dry-run stub"}))'`
+  : (process.env.FRITES_BENCH_HARNESS ?? `bash ${DEFAULT_HARNESS}`);
 
 const conditions = ONLY ? generated.filter((c) => ONLY.includes(c.name)) : generated;
 if (conditions.length === 0) {
@@ -211,17 +211,17 @@ if (conditions.length === 0) {
 // ── gateway lifecycle (mirrors eval/value-gate.ts) ───────────────────────────
 // Bind host: 127.0.0.1 by default (loopback only). For the Docker harness the benchmark runs in a
 // container and reaches the host gateway via host.docker.internal, which a 127.0.0.1-bound server
-// REFUSES — so export DISTRAI_BENCH_GATEWAY_HOST=0.0.0.0 for Docker runs (exposes the gateway on the
-// LAN for the run's duration; auth is off by default — set DISTRAI_GATEWAY_TOKEN if that matters).
-const GATEWAY_HOST = process.env.DISTRAI_BENCH_GATEWAY_HOST ?? "127.0.0.1";
+// REFUSES — so export FRITES_BENCH_GATEWAY_HOST=0.0.0.0 for Docker runs (exposes the gateway on the
+// LAN for the run's duration; auth is off by default — set FRITES_GATEWAY_TOKEN if that matters).
+const GATEWAY_HOST = process.env.FRITES_BENCH_GATEWAY_HOST ?? "127.0.0.1";
 function startGateway(configPath: string, port: number) {
   const tsxBin = join(REPO, "node_modules", ".bin", "tsx");
   const proc = spawn(tsxBin, [join(REPO, "apps", "gateway", "src", "index.ts")], {
     env: {
       ...process.env,
-      DISTRAI_GLOBAL_CONFIG: configPath,
-      DISTRAI_GATEWAY_PORT: String(port),
-      DISTRAI_GATEWAY_HOST: GATEWAY_HOST,
+      FRITES_GLOBAL_CONFIG: configPath,
+      FRITES_GATEWAY_PORT: String(port),
+      FRITES_GATEWAY_HOST: GATEWAY_HOST,
       ANTHROPIC_BASE_URL: "", // never let the gateway point a child back at itself
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -246,7 +246,7 @@ async function waitForPort(port: number, timeoutMs = 20000): Promise<boolean> {
   return false;
 }
 
-/** Sum every "$N.NNN" the gateway logged — the real distrai spend (claude reports it authoritatively;
+/** Sum every "$N.NNN" the gateway logged — the real frites spend (claude reports it authoritatively;
  *  codex on the ChatGPT/OAuth backend reports nothing, so a codex-only OAuth row can read $0 even
  *  though work happened — read the `tok` column alongside it). */
 function sumGatewayCost(log: string): number {
@@ -276,14 +276,14 @@ function runHarness(env: NodeJS.ProcessEnv, resultPath: string): HarnessResult {
   execFileSync("bash", ["-lc", HARNESS], {
     env,
     stdio: ["ignore", "inherit", "inherit"], // let the harness stream its own progress to our console
-    timeout: TIMEOUT_MIN * 60 * 1000, // per-condition ceiling (DISTRAI_BENCH_TIMEOUT_MIN, default 90)
+    timeout: TIMEOUT_MIN * 60 * 1000, // per-condition ceiling (FRITES_BENCH_TIMEOUT_MIN, default 90)
     maxBuffer: 64 * 1024 * 1024,
   });
   if (!existsSync(resultPath)) throw new Error(`harness wrote no result at ${resultPath}`);
   return JSON.parse(readFileSync(resultPath, "utf8")) as HarnessResult;
 }
 
-// The cost worth showing: distrai's real spend from the gateway logs, else the harness's own number
+// The cost worth showing: frites's real spend from the gateway logs, else the harness's own number
 // (which is right for raw baselines — their model ids ARE in LiteLLM's price map).
 const rowCost = (r: Row): number => r.gatewayCostUsd ?? r.cost_usd;
 const rowTokK = (r: Row): string => `${(((r.prompt_tokens ?? 0) + (r.completion_tokens ?? 0)) / 1000).toFixed(1)}k`;
@@ -297,17 +297,17 @@ process.stderr.write(
 );
 
 for (const cond of conditions) {
-  const isDistrai = !!cond.config;
+  const isFrites = !!cond.config;
   const port = portCursor++;
   const resultPath = join(tmpdir(), `bench-${port}.json`);
   let cfgPath: string | undefined;
   let gw: ReturnType<typeof startGateway> | undefined;
 
-  process.stderr.write(`\n[bench] ${cond.name}${isDistrai ? ` on :${port}` : " (passthrough)"}…\n`);
+  process.stderr.write(`\n[bench] ${cond.name}${isFrites ? ` on :${port}` : " (passthrough)"}…\n`);
 
   let row: Row;
   try {
-    if (isDistrai) {
+    if (isFrites) {
       cfgPath = join(tmpdir(), `bench-cfg-${port}.json`);
       writeFileSync(cfgPath, JSON.stringify(cond.config));
       gw = startGateway(cfgPath, port);
@@ -315,21 +315,21 @@ for (const cond of conditions) {
       if (!up) throw new Error("gateway did not start");
     }
 
-    const url = isDistrai ? `http://127.0.0.1:${port}` : "";
+    const url = isFrites ? `http://127.0.0.1:${port}` : "";
     const env: NodeJS.ProcessEnv = {
       ...process.env,
-      DISTRAI_BENCH_URL: url,
-      DISTRAI_BENCH_MODEL: cond.model,
-      DISTRAI_BENCH_RESULT: resultPath,
-      DISTRAI_BENCH_NUM_TESTS: NUM_TESTS,
-      DISTRAI_BENCH_CONDITION: cond.name,
-      ...(isDistrai
+      FRITES_BENCH_URL: url,
+      FRITES_BENCH_MODEL: cond.model,
+      FRITES_BENCH_RESULT: resultPath,
+      FRITES_BENCH_NUM_TESTS: NUM_TESTS,
+      FRITES_BENCH_CONDITION: cond.name,
+      ...(isFrites
         ? {
             // Cover both harness families: Anthropic-SDK/Inspect read ANTHROPIC_BASE_URL,
             // LiteLLM/aider read ANTHROPIC_API_BASE. The key is a dummy (gateway auth is off).
             ANTHROPIC_BASE_URL: url,
             ANTHROPIC_API_BASE: url,
-            ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "distrai",
+            ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "frites",
           }
         : {}),
       ...cond.env,
@@ -372,7 +372,7 @@ for (const cond of conditions) {
 }
 
 // ── report ─────────────────────────────────────────────────────────────────
-console.log("\n=== distrai bench-matrix ===");
+console.log("\n=== frites bench-matrix ===");
 console.log(`${"condition".padEnd(30)} n    pass@1  pass@2  well%   tok     cost($)  dur(s)`);
 for (const r of rows) {
   if (r.error) {
@@ -386,8 +386,8 @@ for (const r of rows) {
 console.log(
   "\nRead it as: does a council beat its own best single member (and the raw model) on pass@2,\n" +
     "and is the cost/latency premium worth it? Notes:\n" +
-    "• cost($) on distrai rows is the gateway-measured spend; on OAuth/subscription it can read $0\n" +
+    "• cost($) on frites rows is the gateway-measured spend; on OAuth/subscription it can read $0\n" +
     "  (and codex reports none) — use the `tok` column as the comparable usage metric there.\n" +
     "• well% — a low well-formed rate means the synthesizer is mangling the harness's edit format,\n" +
-    "  which caps pass-rate independent of reasoning quality (a distrai fix, not a benchmark result).",
+    "  which caps pass-rate independent of reasoning quality (a frites fix, not a benchmark result).",
 );

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
-import type { ChildKind, DistraiConfig } from "@distrai/core";
+import type { ChildKind, FritesConfig } from "@frites/core";
 import { assertDepth, buildChildEnv, currentDepth } from "./env-sandbox";
 
 /**
@@ -28,7 +28,7 @@ export type ChildEvent =
     };
 
 export interface CompletionOptions {
-  config: DistraiConfig;
+  config: FritesConfig;
   model?: string;
   signal?: AbortSignal;
   passApiKeys?: boolean;
@@ -245,7 +245,7 @@ function finalText(acc: StreamAcc, raw: string): string {
  * return its text + reported cost/tokens. Used by the transparent-proxy answer council. Output is
  * streamed as it's produced (opts.onEvent), so callers can show live per-agent progress instead
  * of waiting for the whole reply. Env is scrubbed (recursion guard) so children never call back
- * into distrai.
+ * into frites.
  */
 export async function runCompletion(
   kind: ChildKind,
@@ -264,7 +264,7 @@ export async function runCompletion(
   // scratch dir. Only `scratch` — a dir WE created — is ever removed; the caller's repo never is.
   const repoCwd =
     opts.cwd && isAbsolute(opts.cwd) && existsSync(opts.cwd) ? opts.cwd : undefined;
-  const scratch = repoCwd ? undefined : mkdtempSync(join(tmpdir(), "distrai-ans-"));
+  const scratch = repoCwd ? undefined : mkdtempSync(join(tmpdir(), "frites-ans-"));
   const cwd = repoCwd ?? (scratch as string);
   const acc = newAcc();
   const emit = (events: ChildEvent[]) => {
@@ -280,7 +280,7 @@ export async function runCompletion(
         "stream-json", // realtime NDJSON event stream (was buffered `json`)
         "--verbose", // required to surface the full event stream under -p
         "--include-partial-messages", // token-level content_block_delta text as it's generated
-        "--strict-mcp-config", // don't auto-load distrai's own MCP (recursion guard)
+        "--strict-mcp-config", // don't auto-load frites's own MCP (recursion guard)
         "--setting-sources",
         "project", // NOT user — user settings may set ANTHROPIC_BASE_URL=gateway → recursion fork-bomb
         // Read-only guard: the council child inspects + answers (or proposes a tool the HOST runs);
@@ -314,7 +314,7 @@ export async function runCompletion(
     }
     // codex: read-only sandbox so it can only answer, never edit. `-o` writes the final message to
     // a file OUTSIDE the repo as a fallback if the JSON event stream yields no agent_message.
-    const outDir = scratch ?? mkdtempSync(join(tmpdir(), "distrai-out-"));
+    const outDir = scratch ?? mkdtempSync(join(tmpdir(), "frites-out-"));
     const lastFile = join(outDir, "last.txt");
     try {
       const args = [

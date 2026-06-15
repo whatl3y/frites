@@ -1,16 +1,16 @@
 {
-  "name": "@distrai/mcp",
+  "name": "@frites/mcp",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "bin": {
-    "distrai-mcp": "./src/index.ts"
+    "frites-mcp": "./src/index.ts"
   },
   "dependencies": {
-    "@distrai/agents": "workspace:*",
-    "@distrai/core": "workspace:*",
-    "@distrai/isolation": "workspace:*",
+    "@frites/agents": "workspace:*",
+    "@frites/core": "workspace:*",
+    "@frites/isolation": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^4.4.3"
   }

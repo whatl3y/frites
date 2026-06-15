@@ -12,7 +12,7 @@ import {
   setByPath,
   unsetByPath,
   writeConfigFile,
-} from "@distrai/core";
+} from "@frites/core";
 
 describe("config helpers", () => {
   it("mergeDeep: later layers win; nested objects merge field-wise", () => {
@@ -55,18 +55,18 @@ describe("loadConfig layering", () => {
   let prev: string | undefined;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "distrai-cfg-"));
-    prev = process.env.DISTRAI_GLOBAL_CONFIG;
+    dir = mkdtempSync(join(tmpdir(), "frites-cfg-"));
+    prev = process.env.FRITES_GLOBAL_CONFIG;
   });
   afterEach(() => {
-    if (prev === undefined) delete process.env.DISTRAI_GLOBAL_CONFIG;
-    else process.env.DISTRAI_GLOBAL_CONFIG = prev;
+    if (prev === undefined) delete process.env.FRITES_GLOBAL_CONFIG;
+    else process.env.FRITES_GLOBAL_CONFIG = prev;
     rmSync(dir, { recursive: true, force: true });
   });
 
   it("repo overrides global overrides schema defaults", () => {
     const gPath = join(dir, "global.json");
-    process.env.DISTRAI_GLOBAL_CONFIG = gPath;
+    process.env.FRITES_GLOBAL_CONFIG = gPath;
     writeConfigFile(gPath, { defaultN: 4, perChildBudgetUsd: 9 });
     const repo = join(dir, "repo");
     writeConfigFile(repoConfigPath(repo), { defaultN: 2 });
@@ -79,7 +79,7 @@ describe("loadConfig layering", () => {
 
   it("falls back to global when the repo has no config", () => {
     const gPath = join(dir, "global.json");
-    process.env.DISTRAI_GLOBAL_CONFIG = gPath;
+    process.env.FRITES_GLOBAL_CONFIG = gPath;
     writeConfigFile(gPath, { defaultN: 5 });
     const cfg = loadConfig(join(dir, "repo-empty"));
     expect(cfg.defaultN).toBe(5);

@@ -1,4 +1,4 @@
-# distrai — Architecture & Plan
+# frites — Architecture & Plan
 
 > A coordinator that dispatches a task to **multiple full coding agents**, has each do real
 > work in isolation, then **diffs / tests / judges** their results into one vetted answer —
@@ -11,9 +11,9 @@ Status: **greenfield**, plan locked 2026-06-14. This document is the source of t
 ## 1. Vision
 
 Run one server. Configure it once in Claude Code and Codex. From then on you say
-*"use distrai to implement X"* and distrai fans the task out to several configured child
+*"use frites to implement X"* and frites fans the task out to several configured child
 agents (Claude, Codex, and/or raw API models), each working autonomously in its own
-isolated git worktree. distrai collects every candidate, runs the repo's **test suite as the
+isolated git worktree. frites collects every candidate, runs the repo's **test suite as the
 ground-truth oracle**, breaks ties between test-passing candidates with a scoped LLM judge,
 optionally runs one grounded feedback round, and returns a single **vetted unified diff** you
 review and apply to a fresh branch.
@@ -32,14 +32,14 @@ against the actual installed binaries) converged on the following. The non-obvio
 The host CLI (Claude Code / Codex) is *already* a full agent with a tool loop over your files.
 Two coherent designs exist:
 - **Stance A — answer/action synthesizer:** children are stateless completions; the host keeps its
-  tool loop; distrai fans out per turn and synthesizes the assistant turn — on a coding turn it
+  tool loop; frites fans out per turn and synthesizes the assistant turn — on a coding turn it
   emits the `tool_use` the host executes (the children *decide* the action; they don't edit files).
 - **Stance B — agentic broker:** children are full agents that do real file edits in isolated
-  worktrees; distrai reconciles their work with the test suite as the ground-truth oracle.
+  worktrees; frites reconciles their work with the test suite as the ground-truth oracle.
 
-distrai ships **both**. The transparent-proxy **gateway is the primary, everyday surface and is
+frites ships **both**. The transparent-proxy **gateway is the primary, everyday surface and is
 Stance A** (lowest friction — every prompt goes through the council; verified editing real code
-end-to-end via host-executed `tool_use`, **no API key**). **Stance B is the MCP `distrai_implement`
+end-to-end via host-executed `tool_use`, **no API key**). **Stance B is the MCP `frites_implement`
 path** for when you want N competing full implementations filtered by tests. (This reverses the
 original worktree-first/Stance-B-only-over-MCP plan — see the Evolution note in §2.3; the priority
 became zero-friction interception of *every* prompt, including plain Q&A.)
@@ -52,21 +52,21 @@ test-passing survivors. Optional synthesis is treated as candidate N+1 and re-va
 the oracle.
 
 ### 2.3 Transport — transparent proxy (primary) + MCP (heavy edits)
-distrai ships TWO transports over one shared engine, for different needs:
+frites ships TWO transports over one shared engine, for different needs:
 
-- **Transparent proxy / gateway (PRIMARY).** distrai impersonates the model endpoint
-  (`ANTHROPIC_BASE_URL` → distrai for Claude Code; provider `base_url` → distrai for Codex) and
-  intercepts EVERY prompt with zero "use distrai" friction. Best for answer/reasoning turns
+- **Transparent proxy / gateway (PRIMARY).** frites impersonates the model endpoint
+  (`ANTHROPIC_BASE_URL` → frites for Claude Code; provider `base_url` → frites for Codex) and
+  intercepts EVERY prompt with zero "use frites" friction. Best for answer/reasoning turns
   (Stance-A synthesis). Chosen primary because the goal is lowest-friction "handle everything."
-  Cost: all metered (distrai is the brain — no free interactive top-level). The recursion risk
+  Cost: all metered (frites is the brain — no free interactive top-level). The recursion risk
   (children inheriting `ANTHROPIC_BASE_URL`) is handled by env-scrubbing every child. It drives the
   host's full agentic loop by emitting `tool_use` the host executes — verified editing real code
   end-to-end (§8).
-- **MCP server / worktree mode (heavy multi-agent file edits).** `distrai_implement` /
-  `distrai_apply` over stdio. Impersonation is the WRONG fit here — returning N candidate diffs +
+- **MCP server / worktree mode (heavy multi-agent file edits).** `frites_implement` /
+  `frites_apply` over stdio. Impersonation is the WRONG fit here — returning N candidate diffs +
   a comparison and running minutes-long worktree agents needs a tool call, not a single model turn
   — so Stance-B worktree work lives on the MCP surface.
-- **CLI.** `distrai run` / `distrai config` call the same engine (testing / CI / power use).
+- **CLI.** `frites run` / `frites config` call the same engine (testing / CI / power use).
 
 (Evolution: MCP was first chosen as the *sole* transport for the worktree-first design; the
 transparent proxy was added and made primary once the priority became zero-friction interception
@@ -81,7 +81,7 @@ of every prompt — including plain Q&A. Both are built.)
 - Result-size: Claude warns at ~10k tokens, hard-caps ~25k. Return compact `structuredContent`
   + `resource_link`s to each diff, never inline N full diffs.
 - Do **not** depend on MCP `sampling` for the judge — Claude Code doesn't implement a sampling
-  client and Codex explicitly refused to. Call models with distrai's own credentials.
+  client and Codex explicitly refused to. Call models with frites's own credentials.
 
 ### 2.4 Child auth is ASYMMETRIC between providers (verified against this machine)
 This is the most counter-intuitive finding. **Billing is decided by the invocation *surface*,
@@ -101,13 +101,13 @@ server-side — not by client identity.**
 broken, ToS-banned, and pointless (the bucket is surface-based).
 
 ### 2.5 Two billing modes (and the chosen default)
-Because of §2.4, where distrai's calls land is decided by the surface:
+Because of §2.4, where frites's calls land is decided by the surface:
 
 1. **Interactive (cheapest, but higher friction):** your *real* Claude Code stays the brain on its
-   interactive subscription limits and calls distrai's MCP worktree tool only for deliberate heavy
+   interactive subscription limits and calls frites's MCP worktree tool only for deliberate heavy
    edits. Maximum free subscription usage; requires you at the session and to invoke the tool.
 2. **Transparent / metered (the CHOSEN default — friction-first):** your Claude Code points at the
-   gateway, so distrai is the brain for *every* prompt. Children use your local subscriptions but
+   gateway, so frites is the brain for *every* prompt. Children use your local subscriptions but
    programmatically → **metered** (Agent-SDK credit / ChatGPT plan), with API-key overflow. Zero
    friction; `fanOutPolicy` + per-turn cost telemetry keep spend in check.
 
@@ -115,7 +115,7 @@ The user chose (2) for UX (friction-over-cost). (1) remains available via the MC
 cost-sensitive heavy edits.
 
 "Subscription-first → API-key overflow" lives in mode 2, understood correctly: for headless
-Claude it's "Agent-SDK credit first, then key" — metered either way. distrai owns the fallback
+Claude it's "Agent-SDK credit first, then key" — metered either way. frites owns the fallback
 router because the vendors don't auto-fall-back.
 
 ### 2.6 Diversity comes from model-mix + prompt-framing, NOT temperature
@@ -146,7 +146,7 @@ where it earns its cost:
   request *shape* alone, so it's correct across restarts and concurrent sessions with no server-side
   session memory.
 - **Background/utility traffic never fans out.** The host emits cheap small/fast-model calls (haiku)
-  for title generation, conversation summarization, and topic classification. distrai pins these to
+  for title generation, conversation summarization, and topic classification. frites pins these to
   a *single* child on the model the host asked for, tools or not — never a council. (Caveat:
   detection keys on the model name, so running the host itself on a haiku *main* model would read
   every turn as background.)
@@ -165,18 +165,18 @@ Three layers, one transport-agnostic engine:
 
 ```
 apps/                              # runnable tools (deployables / entry points)
-  gateway/     @distrai/gateway    TRANSPARENT PROXY (primary surface): impersonates /v1/messages
+  gateway/     @frites/gateway    TRANSPARENT PROXY (primary surface): impersonates /v1/messages
                                    (Claude Code) + /v1/responses (Codex); intercepts every prompt,
                                    answer/action-council fan-out per fanOutPolicy + fanOutScope (§2.8),
                                    SSE streaming, per-turn cost telemetry. Stance-A: synthesizes the
                                    assistant turn — emits host-executed tool_use on coding turns.
-  mcp/         @distrai/mcp        on-demand MCP tool surface (Stance B): distrai_implement +
-                                   distrai_apply — heavy multi-agent file edits in worktrees → diffs
-  cli/         @distrai/cli        standalone `distrai run` + `distrai config` — same engine
+  mcp/         @frites/mcp        on-demand MCP tool surface (Stance B): frites_implement +
+                                   frites_apply — heavy multi-agent file edits in worktrees → diffs
+  cli/         @frites/cli        standalone `frites run` + `frites config` — same engine
 packages/                          # libraries (no entry points)
-  core/        @distrai/core       engine (funnel) + oracle + judge + config + answer-council
-  isolation/   @distrai/isolation  git worktree lifecycle, diff capture, apply-to-branch
-  agents/      @distrai/agents      headless claude/codex runners + completions + cost estimation + EnvSandbox (recursion guard)
+  core/        @frites/core       engine (funnel) + oracle + judge + config + answer-council
+  isolation/   @frites/isolation  git worktree lifecycle, diff capture, apply-to-branch
+  agents/      @frites/agents      headless claude/codex runners + completions + cost estimation + EnvSandbox (recursion guard)
 
 Two surfaces, one engine: the **gateway** is the frictionless everyday brain (Q&A/reasoning AND
 coding edits, every prompt, metered); the **MCP** path is for deliberate heavy multi-agent file
@@ -200,17 +200,17 @@ DISPATCH → EXECUTE (N children in worktrees, concurrent)
                       ≥2 survivors → JUDGE (pairwise tie-break, prefer smaller diff)
         → [P5] optional gated SYNTHESIS (re-validated through oracle)
         → PRESENT (recommended diff + per-candidate comparison)
-        → APPLY (on approval: git switch -c distrai/<runId> && git apply --3way)
+        → APPLY (on approval: git switch -c frites/<runId> && git apply --3way)
 ```
 
 ### Data flow (interactive mode)
-User in normal Claude Code: *"use distrai to implement X"* → host calls `distrai_implement`
+User in normal Claude Code: *"use frites to implement X"* → host calls `frites_implement`
 `{task, repoPath, n?, agents?}` → engine resolves base commit, decides N, creates N worktrees,
-`EnvSandbox` builds allowlist env (auth kept, base-URLs scrubbed, `DISTRAI_DEPTH++`),
+`EnvSandbox` builds allowlist env (auth kept, base-URLs scrubbed, `FRITES_DEPTH++`),
 `AgentRunner` spawns detached headless children that edit in isolation concurrently → engine
 streams `notifications/progress` ("agent 2 editing app.ts / running tests") → capture each
 `git diff --staged` → oracle filters → reconcile → return `structuredContent` + `resource_link`s
-→ user reviews → `distrai_apply {runId}` lands the diff on a fresh branch (the one mandatory
+→ user reviews → `frites_apply {runId}` lands the diff on a fresh branch (the one mandatory
 human gate).
 
 ---
@@ -221,9 +221,9 @@ Full-auto agents with bypassed permissions on a real repo: the isolation boundar
 control left.
 - **Allowlist** child env (never copy `process.env`); keep only HOME/PATH/locale + auth.
 - **Recursion guard:** scrub `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` / `CODEX_BASE_URL` /
-  MCP config; `DISTRAI_DEPTH` fuse refuses to spawn above a threshold; children launched with
+  MCP config; `FRITES_DEPTH` fuse refuses to spawn above a threshold; children launched with
   `--strict-mcp-config` (claude) / `--ignore-user-config`-style isolation (codex) so they don't
-  auto-load distrai.
+  auto-load frites.
 - **Secret denyRead:** `~/.ssh`, `~/.aws`, `.env` (via `@anthropic-ai/sandbox-runtime` in P4).
 - **Sandbox:** `codex -s workspace-write`; wrap each agent in sandbox-runtime (default-deny
   egress, allowlist model + registry endpoints) in P4.
@@ -274,7 +274,7 @@ minutes-per-iteration debug tax (every e2e run costs minutes + real metered cred
 - Acceptance-test generation: rely on the repo's existing suite for MVP; add generation in P5.
 - Default child mix: 3× Claude for P0–P2 to reduce variables, introduce Codex in P1 once the
   runner abstraction is stable; **then** default N=2 (1 claude + 1 codex) by measured divergence.
-- Run artifacts: `.distrai/` in-repo (gitignored) for locality + resource_link URIs.
+- Run artifacts: `.frites/` in-repo (gitignored) for locality + resource_link URIs.
 - Two tools (`implement` returns diff, `apply` lands it) for an explicit human gate.
 - Containers deferred to a P5 hardened mode; sandbox-runtime is the default boundary.
 
@@ -291,14 +291,14 @@ Built and tested (67/67 unit tests; typecheck clean; live smoke against a real `
   detection) + background-model bypass (host haiku traffic never fans out; §2.8), per-turn cost
   telemetry (config-driven `pricing` estimation for backends that don't self-report cost, e.g.
   codex; §2.4) + a closing per-turn council recap line.
-- **apps/mcp** — worktree tool: `distrai_implement` + `distrai_apply` (worktrees → tests-as-oracle
+- **apps/mcp** — worktree tool: `frites_implement` + `frites_apply` (worktrees → tests-as-oracle
   → heuristic judge → vetted diff → apply-to-fresh-branch), progress notifications.
-- **apps/cli** — `distrai run` + `distrai config` (init/show/get/set/unset/validate/path; global+repo layering).
+- **apps/cli** — `frites run` + `frites config` (init/show/get/set/unset/validate/path; global+repo layering).
 - **packages**: `core` (engine funnel, oracle, judge, config, answer-council), `isolation`
   (WorktreeManager), `agents` (claude/codex runners + answer-only completions + `pricing` cost
   estimation + env sandbox: allowlist + recursion fuse).
 
-GATEWAY CODE-EDITING WORKS (verified): on a coding turn distrai emits the `tool_use`
+GATEWAY CODE-EDITING WORKS (verified): on a coding turn frites emits the `tool_use`
 (Read/Edit/Bash) the host executes — proven end-to-end (real `claude` → gateway → Read→Edit→answer,
 bug fixed, `npm test` passed), **no API key** (subscription `claude -p` children decide the action
 via `runActionCouncil`; the gateway constructs the `tool_use`). Remaining / not yet done: Codex

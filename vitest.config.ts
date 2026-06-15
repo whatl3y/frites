@@ -3,13 +3,13 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      "@distrai/core": new URL("./packages/core/src/index.ts", import.meta.url)
+      "@frites/core": new URL("./packages/core/src/index.ts", import.meta.url)
         .pathname,
-      "@distrai/isolation": new URL(
+      "@frites/isolation": new URL(
         "./packages/isolation/src/index.ts",
         import.meta.url,
       ).pathname,
-      "@distrai/agents": new URL(
+      "@frites/agents": new URL(
         "./packages/agents/src/index.ts",
         import.meta.url,
       ).pathname,

@@ -2,24 +2,24 @@
 # Aider polyglot adapter for eval/bench-matrix.ts — DOCKER SANDBOX edition.
 #
 # The benchmark executes model-generated solution code, so it runs inside aider's container
-# (image `aider-benchmark`, built by `./benchmark/docker_build.sh`). The distrai gateway, by
+# (image `aider-benchmark`, built by `./benchmark/docker_build.sh`). The frites gateway, by
 # contrast, runs on the HOST (its child claude/codex CLIs need the host's OAuth/keychain), so the
 # container reaches it via host.docker.internal — which is why bench-matrix must bind the gateway to
-# 0.0.0.0 (export DISTRAI_BENCH_GATEWAY_HOST=0.0.0.0). See eval/README.md.
+# 0.0.0.0 (export FRITES_BENCH_GATEWAY_HOST=0.0.0.0). See eval/README.md.
 #
 # bench-matrix invokes this once per condition with these env vars:
-#   DISTRAI_BENCH_URL        gateway base url on the host (empty for raw-model passthrough baselines)
-#   DISTRAI_BENCH_MODEL      bare model id, e.g. "distrai-council" or "anthropic/claude-opus-4-8"
-#   DISTRAI_BENCH_RESULT     host path to write the results JSON this script must produce
-#   DISTRAI_BENCH_NUM_TESTS  exercise cap (empty = run all 225)
-#   DISTRAI_BENCH_CONDITION  condition name (labels the aider run dir)
+#   FRITES_BENCH_URL        gateway base url on the host (empty for raw-model passthrough baselines)
+#   FRITES_BENCH_MODEL      bare model id, e.g. "frites-council" or "anthropic/claude-opus-4-8"
+#   FRITES_BENCH_RESULT     host path to write the results JSON this script must produce
+#   FRITES_BENCH_NUM_TESTS  exercise cap (empty = run all 225)
+#   FRITES_BENCH_CONDITION  condition name (labels the aider run dir)
 #   ANTHROPIC_API_KEY / OPENAI_API_KEY  forwarded into the container for raw baselines
 #
 # You set these (see eval/README.md):
 #   AIDER_REPO          path to your cloned aider checkout (with tmp.benchmarks/polyglot-benchmark)
 #   AIDER_DOCKER_IMAGE  (optional, default "aider-benchmark")
 #   AIDER_EDIT_FORMAT   (optional, default "whole" — easiest for the council to emit correctly)
-#   AIDER_THREADS       (optional, default 2 — keep LOW; each distrai request fans out to a fleet of
+#   AIDER_THREADS       (optional, default 2 — keep LOW; each frites request fans out to a fleet of
 #                        child CLIs, so high thread counts swamp the host + the children's rate limits)
 #   AIDER_TRIES         (optional, default 2 — gives the pass@2 column)
 set -euo pipefail
@@ -32,26 +32,26 @@ IMAGE="${AIDER_DOCKER_IMAGE:-aider-benchmark}"
 # Sanitize the condition name for use in a path: it can contain '/', '+', and spaces (e.g.
 # "claude+codex / oauth"), and a '/' silently splits the run dir so the stats lookup misses and
 # falls back to a STALE run dir — reporting the wrong numbers. Map anything unsafe to '-'.
-SAFE_COND="$(printf '%s' "${DISTRAI_BENCH_CONDITION:-run}" | tr -c 'A-Za-z0-9._-' '-')"
-RUN_NAME="distrai-${SAFE_COND}-$(date +%s)"
+SAFE_COND="$(printf '%s' "${FRITES_BENCH_CONDITION:-run}" | tr -c 'A-Za-z0-9._-' '-')"
+RUN_NAME="frites-${SAFE_COND}-$(date +%s)"
 
 # Removed on exit even if the run fails (set -e would otherwise skip a trailing rm).
 SETTINGS_DIR=""
 cleanup() { [ -n "${SETTINGS_DIR:-}" ] && rm -rf "$SETTINGS_DIR"; }
 trap cleanup EXIT
 
-# Per-condition docker args (mounts + env that differ between distrai and raw baselines).
+# Per-condition docker args (mounts + env that differ between frites and raw baselines).
 EXTRA_DOCKER=()
 SETTINGS_FILE="" # in-container path to the model-settings yaml; empty for passthrough baselines
 
-if [ -n "${DISTRAI_BENCH_URL:-}" ]; then
-  MODEL="anthropic/${DISTRAI_BENCH_MODEL}"
+if [ -n "${FRITES_BENCH_URL:-}" ]; then
+  MODEL="anthropic/${FRITES_BENCH_MODEL}"
   # On the host the gateway is 127.0.0.1:PORT; from inside the container that's the CONTAINER. Reach
   # the host gateway via host.docker.internal (docker.sh maps it with --add-host, incl. on Linux).
-  CONTAINER_URL="$(printf '%s' "$DISTRAI_BENCH_URL" | sed -e 's#127\.0\.0\.1#host.docker.internal#' -e 's#localhost#host.docker.internal#')"
+  CONTAINER_URL="$(printf '%s' "$FRITES_BENCH_URL" | sed -e 's#127\.0\.0\.1#host.docker.internal#' -e 's#localhost#host.docker.internal#')"
   # LiteLLM rejects unknown anthropic model names for cost/token mapping; alias it. mktemp -d with
   # TRAILING X's is portable across BSD/macOS and GNU mktemp. Mounted read-only into the container.
-  SETTINGS_DIR="$(mktemp -d "${TMPDIR:-/tmp}/distrai-aider.XXXXXX")"
+  SETTINGS_DIR="$(mktemp -d "${TMPDIR:-/tmp}/frites-aider.XXXXXX")"
   cat > "$SETTINGS_DIR/model-settings.yml" <<YML
 - name: ${MODEL}
   edit_format: ${EDIT_FORMAT}
@@ -59,14 +59,14 @@ if [ -n "${DISTRAI_BENCH_URL:-}" ]; then
   extra_params:
     max_tokens: 8192
 YML
-  SETTINGS_FILE="/distrai-settings/model-settings.yml"
-  EXTRA_DOCKER+=(-v "$SETTINGS_DIR:/distrai-settings:ro")
+  SETTINGS_FILE="/frites-settings/model-settings.yml"
+  EXTRA_DOCKER+=(-v "$SETTINGS_DIR:/frites-settings:ro")
   EXTRA_DOCKER+=(-e "ANTHROPIC_API_BASE=$CONTAINER_URL")
   EXTRA_DOCKER+=(-e "ANTHROPIC_BASE_URL=$CONTAINER_URL")
   # Auth is off on the gateway by default; any token works. (Children auth on the host, not here.)
-  EXTRA_DOCKER+=(-e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-distrai}")
+  EXTRA_DOCKER+=(-e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-frites}")
 else
-  MODEL="${DISTRAI_BENCH_MODEL}"
+  MODEL="${FRITES_BENCH_MODEL}"
   # Raw baseline → real provider APIs; forward whatever creds the host has (-e VAR passes its value,
   # or nothing if unset — no shell expansion, so safe under set -u).
   EXTRA_DOCKER+=(-e ANTHROPIC_API_KEY -e OPENAI_API_KEY)
@@ -85,7 +85,7 @@ ARGS=(--model "$MODEL" --edit-format "$EDIT_FORMAT" --tries "$TRIES" --threads "
 ./benchmark/benchmark.py "$RUN_NAME" "${ARGS[@]}" 1>&2
 RUN_DIR="$(ls -dt /benchmarks/*--"$RUN_NAME" 2>/dev/null | head -n1 || true)"
 [ -n "$RUN_DIR" ] || RUN_DIR="$(ls -dt /benchmarks/*/ 2>/dev/null | head -n1 || true)"
-echo "DISTRAI_RUN_DIR=$RUN_DIR"
+echo "FRITES_RUN_DIR=$RUN_DIR"
 ./benchmark/benchmark.py --stats "$RUN_DIR" 2>/dev/null || true
 SCRIPT
 )
@@ -105,7 +105,7 @@ OUT="$(docker run --rm \
   -e EDIT_FORMAT="$EDIT_FORMAT" \
   -e TRIES="$TRIES" \
   -e THREADS="$THREADS" \
-  -e NUM_TESTS="${DISTRAI_BENCH_NUM_TESTS:-}" \
+  -e NUM_TESTS="${FRITES_BENCH_NUM_TESTS:-}" \
   -e SETTINGS_FILE="$SETTINGS_FILE" \
   "${EXTRA_DOCKER[@]+"${EXTRA_DOCKER[@]}"}" \
   "$IMAGE" \
@@ -114,7 +114,7 @@ OUT="$(docker run --rm \
 # Parse the captured --stats on the host (key names drift across aider versions — confirm once with
 # `./benchmark/benchmark.py --stats <run-dir>`). Trailing `|| true` keeps no-match set -e-safe.
 STATS="$OUT"
-RUN_DIR="$(printf '%s\n' "$OUT" | sed -n 's/^DISTRAI_RUN_DIR=//p' | head -n1 || true)"
+RUN_DIR="$(printf '%s\n' "$OUT" | sed -n 's/^FRITES_RUN_DIR=//p' | head -n1 || true)"
 # `sed 's/.*[:=]//'` drops everything up to the LAST : or = first, so the number we grab is the
 # VALUE — not a digit inside the key name (e.g. the "1" in "pass_rate_1"). Portable BSD/GNU sed.
 grab() { { printf '%s\n' "$STATS" | grep -iE "$1" | head -n1 | sed 's/.*[:=]//' | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1; } || true; }
@@ -132,7 +132,7 @@ CT="$(grab 'completion_tokens')"; CT="${CT:-0}"
 NOTES="aider polyglot ${EDIT_FORMAT}/${TRIES}tries (docker) ${RUN_DIR:-<no run dir>}"
 printf '%s' "$STATS" | grep -qiE 'pass_rate' || NOTES="NO STATS PARSED — run likely failed, see console. ${NOTES}"
 
-cat > "$DISTRAI_BENCH_RESULT" <<JSON
+cat > "$FRITES_BENCH_RESULT" <<JSON
 {"pass_rate_1": ${P1}, "pass_rate_2": ${P2}, "percent_well_formed": ${WF}, "cost_usd": ${COST}, "n": ${N}, "prompt_tokens": ${PT}, "completion_tokens": ${CT}, "notes": "${NOTES}"}
 JSON
 # SETTINGS_DIR is removed by the EXIT trap.

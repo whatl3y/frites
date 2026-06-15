@@ -9,5 +9,5 @@ import type { CliRunnerDef } from "./runner";
 import { claudeRunner } from "./claude";
 import { codexRunner } from "./codex";
 
-/** All CLI runners distrai ships with today. */
+/** All CLI runners frites ships with today. */
 export const defaultRunners: CliRunnerDef[] = [claudeRunner, codexRunner];

@@ -1,5 +1,5 @@
 import { type FanOutDecision, decideFanOut } from "./answer-council";
-import type { DistraiConfig } from "./config";
+import type { FritesConfig } from "./config";
 // withChildDirective is appended at the council level; childActionPrompt embeds the directive in
 // its AUTHORITATIVE region (above the untrusted transcript), so it takes the directive directly.
 
@@ -11,7 +11,7 @@ export interface ToolDef {
 }
 
 /**
- * The single next move distrai (as the host's brain) will take this turn:
+ * The single next move frites (as the host's brain) will take this turn:
  * either finish with text, or emit a tool call the HOST executes on the real repo.
  */
 export type AgentAction =
@@ -23,7 +23,7 @@ export interface ActionCouncilDeps {
     prompt: string,
     ctx: { role: "child" | "synth"; index: number },
   ) => Promise<string>;
-  config: DistraiConfig;
+  config: FritesConfig;
   onProgress?: (message: string) => void;
   decision?: FanOutDecision;
 }

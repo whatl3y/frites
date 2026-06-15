@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { type DistraiConfig, resolveConfig } from "./config";
+import { type FritesConfig, resolveConfig } from "./config";
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -75,13 +75,13 @@ export function parseConfigValue(raw: string): unknown {
 
 export function globalConfigPath(): string {
   return (
-    process.env.DISTRAI_GLOBAL_CONFIG ||
-    join(homedir(), ".distrai", "config.json")
+    process.env.FRITES_GLOBAL_CONFIG ||
+    join(homedir(), ".frites", "config.json")
   );
 }
 
 export function repoConfigPath(repoPath: string): string {
-  return join(repoPath, ".distrai", "config.json");
+  return join(repoPath, ".frites", "config.json");
 }
 
 export function readConfigFile(
@@ -125,10 +125,10 @@ export function configSources(repoPath?: string): ConfigSources {
 }
 
 /**
- * Resolve effective config by layering: schema defaults < ~/.distrai/config.json <
- * <repo>/.distrai/config.json. Repo settings win over global, global over defaults.
+ * Resolve effective config by layering: schema defaults < ~/.frites/config.json <
+ * <repo>/.frites/config.json. Repo settings win over global, global over defaults.
  */
-export function loadConfig(repoPath?: string): DistraiConfig {
+export function loadConfig(repoPath?: string): FritesConfig {
   const layers: Array<Record<string, unknown> | undefined> = [
     readConfigFile(globalConfigPath()),
   ];
@@ -136,7 +136,7 @@ export function loadConfig(repoPath?: string): DistraiConfig {
   return resolveConfig(mergeDeep(...layers));
 }
 
-/** A sensible starter config written by `distrai config init`. */
+/** A sensible starter config written by `frites config init`. */
 export function starterConfig(): Record<string, unknown> {
   return {
     defaultN: 2,

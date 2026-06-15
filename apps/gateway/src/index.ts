@@ -6,7 +6,7 @@ import { isAbsolute } from "node:path";
 import {
   type AgentAction,
   type AgentSpec,
-  type DistraiConfig,
+  type FritesConfig,
   type FanOutDecision,
   type ToolDef,
   decideFanOut,
@@ -14,33 +14,33 @@ import {
   loadConfig,
   runActionCouncil,
   runAnswerCouncil,
-} from "@distrai/core";
-import { type ChildEvent, estimateCostUsd, pricingFor, runCompletion } from "@distrai/agents";
+} from "@frites/core";
+import { type ChildEvent, estimateCostUsd, pricingFor, runCompletion } from "@frites/agents";
 import { type Logger, createLogger, resolveLogLevel } from "./logger";
 import { type ProgressSink, createProgressSink } from "./progress";
 
-const HOST = process.env.DISTRAI_GATEWAY_HOST ?? "127.0.0.1";
-const PORT = Number(process.env.DISTRAI_GATEWAY_PORT ?? 6767);
-const config: DistraiConfig = loadConfig(process.cwd());
-const passApiKeys = config.passApiKeys || process.env.DISTRAI_PASS_API_KEYS === "1";
+const HOST = process.env.FRITES_GATEWAY_HOST ?? "127.0.0.1";
+const PORT = Number(process.env.FRITES_GATEWAY_PORT ?? 6767);
+const config: FritesConfig = loadConfig(process.cwd());
+const passApiKeys = config.passApiKeys || process.env.FRITES_PASS_API_KEYS === "1";
 // Optional shared-secret on inbound requests (off by default to keep the quickstart simple).
-const GATEWAY_TOKEN = process.env.DISTRAI_GATEWAY_TOKEN ?? "";
+const GATEWAY_TOKEN = process.env.FRITES_GATEWAY_TOKEN ?? "";
 // How often to emit a "still working — Ns" heartbeat to the client during a long turn.
-const HEARTBEAT_MS = Number(process.env.DISTRAI_HEARTBEAT_MS ?? 5000);
+const HEARTBEAT_MS = Number(process.env.FRITES_HEARTBEAT_MS ?? 5000);
 // How often (ms) to refresh a per-agent "~N tok · Ns" telemetry line while a child streams.
-const TELEMETRY_MS = Number(process.env.DISTRAI_TELEMETRY_MS ?? 2000);
+const TELEMETRY_MS = Number(process.env.FRITES_TELEMETRY_MS ?? 2000);
 // Per-child progress verbosity: "telemetry" (state + token/time counters) or "interleaved"
 // (also stream each child's output, agent-prefixed). Env overrides config.progressDetail.
 const PROGRESS_DETAIL: "telemetry" | "interleaved" =
-  process.env.DISTRAI_PROGRESS_DETAIL === "interleaved"
+  process.env.FRITES_PROGRESS_DETAIL === "interleaved"
     ? "interleaved"
-    : process.env.DISTRAI_PROGRESS_DETAIL === "telemetry"
+    : process.env.FRITES_PROGRESS_DETAIL === "telemetry"
       ? "telemetry"
       : config.progressDetail;
 // Placeholder signature for the ephemeral progress `thinking` block. The real Anthropic API
 // signs thinking; we don't, and we strip thinking on the way back in (see blocksToText), so this
 // is never verified by anyone — it just keeps the block well-formed for clients that expect one.
-const PROGRESS_SIGNATURE = Buffer.from("distrai-progress").toString("base64");
+const PROGRESS_SIGNATURE = Buffer.from("frites-progress").toString("base64");
 
 // Process-level logging (startup, server errors); per-turn logging uses a child logger.
 const rootLog: Logger = createLogger({ level: resolveLogLevel(config.logLevel) });
@@ -449,7 +449,7 @@ async function runAgentTurn(
   // A single consolidated recap line closes out the progress channel — so even when the client
   // collapses the live thinking/reasoning block, its summary view states at a glance what the
   // council did this turn (agents consulted, wall time, calls, cost). The full per-agent detail
-  // lives in the gateway log (`distrai logs -f --level debug`), the durable after-the-fact view.
+  // lives in the gateway log (`frites logs -f --level debug`), the durable after-the-fact view.
   const recap = (fannedOut: boolean): void => {
     const head = fannedOut
       ? `${decision.n} agents + synth`
@@ -490,7 +490,7 @@ function servedTurn(
     return Promise.resolve({
       action: {
         kind: "answer",
-        text: `distrai: per-session turn cap (${config.maxTurns}) reached — stopping to avoid runaway cost. Raise \`maxTurns\` in config if this was intended.`,
+        text: `frites: per-session turn cap (${config.maxTurns}) reached — stopping to avoid runaway cost. Raise \`maxTurns\` in config if this was intended.`,
       },
       spend: { usd: 0, calls: 0 },
       fannedOut: false,
@@ -521,7 +521,7 @@ function servedTurn(
 function actionText(action: AgentAction): string {
   return action.kind === "answer"
     ? action.text
-    : `(distrai chose tool ${action.name}; not supported on this surface yet)`;
+    : `(frites chose tool ${action.name}; not supported on this surface yet)`;
 }
 
 // ── Anthropic Messages encoding (/v1/messages) ──
@@ -574,7 +574,7 @@ async function anthropicStream(
         delta: { type: "thinking_delta", thinking: text.endsWith("\n") ? text : `${text}\n` },
       });
     };
-    writeThinking("distrai — working…");
+    writeThinking("frites — working…");
     progress.onMessage(writeThinking);
     const since = Date.now();
     heartbeat = setInterval(
@@ -612,7 +612,7 @@ async function anthropicStream(
     action = (await turn).action;
   } catch (e) {
     turnLog.error("turn failed", { error: errMsg(e) });
-    action = { kind: "answer", text: `distrai gateway error: ${errMsg(e)}` };
+    action = { kind: "answer", text: `frites gateway error: ${errMsg(e)}` };
   } finally {
     clearInterval(ping);
     if (heartbeat) clearInterval(heartbeat);
@@ -754,7 +754,7 @@ async function responsesStream(
         summary_index: 0, delta: line,
       });
     };
-    writeReason("distrai — working…");
+    writeReason("frites — working…");
     progress.onMessage(writeReason);
     const since = Date.now();
     heartbeat = setInterval(
@@ -806,7 +806,7 @@ async function responsesStream(
     answer = actionText((await turn).action);
   } catch (e) {
     turnLog.error("turn failed", { error: errMsg(e) });
-    answer = `distrai gateway error: ${errMsg(e)}`;
+    answer = `frites gateway error: ${errMsg(e)}`;
   } finally {
     clearInterval(ping);
     if (heartbeat) clearInterval(heartbeat);
@@ -868,7 +868,7 @@ function makeTurnContext(streaming: boolean): TurnContext {
 
 async function handleMessages(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = JSON.parse((await readBody(req)) || "{}");
-  const model = typeof body.model === "string" ? body.model : "distrai";
+  const model = typeof body.model === "string" ? body.model : "frites";
   const prompt = extractAnthropicPrompt(body);
   const tools = extractAnthropicTools(body);
   const sysText = typeof body.system === "string" ? body.system : blocksToText(body.system);
@@ -895,7 +895,7 @@ async function handleMessages(req: IncomingMessage, res: ServerResponse): Promis
 
 async function handleResponses(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = JSON.parse((await readBody(req)) || "{}");
-  const model = typeof body.model === "string" ? body.model : "distrai";
+  const model = typeof body.model === "string" ? body.model : "frites";
   const prompt = extractResponsesPrompt(body);
   const key = sessionKey((typeof body.instructions === "string" ? body.instructions : "") + "\n" + prompt.slice(0, 200));
   const decisionBasis = responsesLastUser(body) || prompt;
@@ -933,7 +933,7 @@ function handleCountTokens(body: string, res: ServerResponse): void {
 
 function handleModels(res: ServerResponse): void {
   const ids = new Set(config.defaultAgents.map((a) => a.model).filter((m): m is string => !!m));
-  ids.add("distrai-council");
+  ids.add("frites-council");
   res.writeHead(200, { "content-type": "application/json" });
   res.end(
     JSON.stringify({

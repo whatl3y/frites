@@ -4,7 +4,7 @@ import { homedir, platform } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const LABEL = "com.distrai.gateway";
+const LABEL = "com.frites.gateway";
 
 /** Repo root — this file lives at <repo>/apps/cli/src/service.ts. */
 function repoRoot(): string {
@@ -14,7 +14,7 @@ function plistPath(): string {
   return join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
 }
 function logDir(): string {
-  return join(homedir(), ".distrai");
+  return join(homedir(), ".frites");
 }
 function tsxEntry(repo: string): string {
   const candidates = [
@@ -33,14 +33,14 @@ function buildPlist(port: number): string {
   const env: Array<[string, string]> = [
     ["PATH", process.env.PATH ?? "/usr/bin:/bin:/usr/local/bin"],
     ["HOME", homedir()],
-    ["DISTRAI_GATEWAY_PORT", String(port)],
+    ["FRITES_GATEWAY_PORT", String(port)],
   ];
   // Carry over any auth/overflow env present at install time so the daemon has it too.
   for (const k of [
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
     "CLAUDE_CODE_OAUTH_TOKEN",
-    "DISTRAI_PASS_API_KEYS",
+    "FRITES_PASS_API_KEYS",
   ]) {
     if (process.env[k]) env.push([k, process.env[k]!]);
   }
@@ -97,7 +97,7 @@ function unloadAgent(plist: string): void {
 export async function runService(argv: string[]): Promise<void> {
   if (platform() !== "darwin") {
     console.error(
-      "`distrai service` manages a macOS launchd background service. On Linux, use a " +
+      "`frites service` manages a macOS launchd background service. On Linux, use a " +
         "systemd --user unit; on any OS you can just run `pnpm gateway`.",
     );
     process.exit(1);
@@ -116,33 +116,33 @@ export async function runService(argv: string[]): Promise<void> {
       writeFileSync(plist, buildPlist(port));
       unloadAgent(plist); // replace any existing instance
       loadAgent(plist);
-      console.log(`✓ distrai gateway installed as a background service (${LABEL}).`);
+      console.log(`✓ frites gateway installed as a background service (${LABEL}).`);
       console.log(
         `  Running on http://127.0.0.1:${port} — auto-starts on login, restarts on crash, idle = $0.`,
       );
       console.log("\nPoint Claude Code at it — add to ~/.claude/settings.json:");
       console.log(
-        `  { "env": { "ANTHROPIC_BASE_URL": "http://127.0.0.1:${port}", "ANTHROPIC_AUTH_TOKEN": "distrai" } }`,
+        `  { "env": { "ANTHROPIC_BASE_URL": "http://127.0.0.1:${port}", "ANTHROPIC_AUTH_TOKEN": "frites" } }`,
       );
       console.log(
-        `\nManage: distrai service status | restart | logs | uninstall   ·   logs: ${join(logDir(), "gateway.log")}`,
+        `\nManage: frites service status | restart | logs | uninstall   ·   logs: ${join(logDir(), "gateway.log")}`,
       );
       return;
     }
     case "uninstall": {
       unloadAgent(plist);
       if (existsSync(plist)) rmSync(plist);
-      console.log("✓ distrai gateway service removed.");
+      console.log("✓ frites gateway service removed.");
       return;
     }
     case "restart": {
       if (!existsSync(plist)) {
-        console.error("Not installed. Run: distrai service install");
+        console.error("Not installed. Run: frites service install");
         process.exit(1);
       }
       unloadAgent(plist);
       loadAgent(plist);
-      console.log("✓ distrai gateway restarted.");
+      console.log("✓ frites gateway restarted.");
       return;
     }
     case "status": {
@@ -167,12 +167,12 @@ export async function runService(argv: string[]): Promise<void> {
     case "logs":
       return runLogs(argv.slice(1));
     default:
-      console.error("usage: distrai service <install|uninstall|restart|status|logs> [--port N]");
+      console.error("usage: frites service <install|uninstall|restart|status|logs> [--port N]");
       process.exit(1);
   }
 }
 
-// ── `distrai logs` — tail the gateway's detailed debug log ──
+// ── `frites logs` — tail the gateway's detailed debug log ──
 
 const LEVEL_ORDER: Record<string, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
@@ -221,7 +221,7 @@ export async function runLogs(argv: string[]): Promise<void> {
   if (!existsSync(out) && !existsSync(err)) {
     console.log(
       `(no logs yet in ${logDir()}). Start the gateway with 'pnpm gateway' or install the ` +
-        `service with 'distrai service install', then check 'distrai service status'.`,
+        `service with 'frites service install', then check 'frites service status'.`,
     );
     return;
   }

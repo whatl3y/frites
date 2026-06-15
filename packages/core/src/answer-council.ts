@@ -1,4 +1,4 @@
-import { type DistraiConfig, withChildDirective } from "./config";
+import { type FritesConfig, withChildDirective } from "./config";
 
 export interface FanOutDecision {
   fanOut: boolean;
@@ -15,7 +15,7 @@ const HARD_SIGNAL =
  */
 export function decideFanOut(
   prompt: string,
-  config: DistraiConfig,
+  config: FritesConfig,
 ): FanOutDecision {
   const n = config.defaultN;
   switch (config.fanOutPolicy) {
@@ -52,7 +52,7 @@ export interface AnswerCouncilDeps {
     prompt: string,
     ctx: { role: "child" | "synth"; index: number },
   ) => Promise<string>;
-  config: DistraiConfig;
+  config: FritesConfig;
   onProgress?: (message: string) => void;
   /** Precomputed fan-out decision (e.g. from llmJudgeFanOut); falls back to decideFanOut. */
   decision?: FanOutDecision;
@@ -65,7 +65,7 @@ export interface AnswerCouncilDeps {
 export async function llmJudgeFanOut(
   prompt: string,
   classify: (q: string) => Promise<string>,
-  config: DistraiConfig,
+  config: FritesConfig,
 ): Promise<FanOutDecision> {
   try {
     const verdict = await classify(

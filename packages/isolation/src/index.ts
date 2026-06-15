@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
-import type { WorktreeHandle, WorktreeManagerLike } from "@distrai/core";
+import type { WorktreeHandle, WorktreeManagerLike } from "@frites/core";
 
 interface GitResult {
   code: number | null;
@@ -48,7 +48,7 @@ async function gitOrThrow(
 const DIFF_EXCLUDES = [
   ":(exclude)node_modules",
   ":(exclude)dist",
-  ":(exclude).distrai",
+  ":(exclude).frites",
 ];
 
 export class WorktreeManager implements WorktreeManagerLike {
@@ -58,7 +58,7 @@ export class WorktreeManager implements WorktreeManagerLike {
     });
     if (r.code !== 0 || r.stdout.trim() !== "true") {
       throw new Error(
-        `${repoPath} is not a git repository. distrai needs a git repo to isolate ` +
+        `${repoPath} is not a git repository. frites needs a git repo to isolate ` +
           `agents in worktrees. Run \`git init\` (and commit a baseline) first.`,
       );
     }
@@ -80,11 +80,11 @@ export class WorktreeManager implements WorktreeManagerLike {
     agentId: string,
     baseSha: string,
   ): Promise<WorktreeHandle> {
-    // Child branches live under distrai/run/<runId>/... so they never collide at the
-    // git-ref level with the apply branch distrai/apply/<runId> (refs are files: a
-    // branch named distrai/<runId> cannot coexist with distrai/<runId>/<agentId>).
-    const branch = `distrai/run/${runId}/${agentId}`;
-    const path = join(repoPath, ".distrai", "worktrees", runId, agentId);
+    // Child branches live under frites/run/<runId>/... so they never collide at the
+    // git-ref level with the apply branch frites/apply/<runId> (refs are files: a
+    // branch named frites/<runId> cannot coexist with frites/<runId>/<agentId>).
+    const branch = `frites/run/${runId}/${agentId}`;
+    const path = join(repoPath, ".frites", "worktrees", runId, agentId);
     await gitOrThrow(
       ["worktree", "add", "--quiet", "-b", branch, path, baseSha],
       { cwd: repoPath },
@@ -134,10 +134,10 @@ export class WorktreeManager implements WorktreeManagerLike {
     if (status.trim().length > 0) {
       throw new Error(
         "Working tree is not clean. Commit or stash your changes before applying a " +
-          "distrai result (distrai will switch to a new branch).",
+          "frites result (frites will switch to a new branch).",
       );
     }
-    const branch = `distrai/apply/${runId}`;
+    const branch = `frites/apply/${runId}`;
     await gitOrThrow(["switch", "-c", branch], { cwd: repoPath });
     const applied = await git(["apply", "--3way", "--index"], {
       cwd: repoPath,

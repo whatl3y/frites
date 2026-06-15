@@ -1,5 +1,5 @@
 {
-  "name": "@distrai/agents",
+  "name": "@frites/agents",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@distrai/core": "workspace:*"
+    "@frites/core": "workspace:*"
   }
 }

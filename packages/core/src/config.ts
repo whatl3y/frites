@@ -61,7 +61,7 @@ export const ModelPricingSchema = z.object({
 
 export type ModelPricing = z.infer<typeof ModelPricingSchema>;
 
-export const DistraiConfigSchema = z.object({
+export const FritesConfigSchema = z.object({
   /** Default number of children when a task doesn't specify. Capped at 5 in v1. */
   defaultN: z.number().int().min(1).max(5).default(2),
   defaultAgents: z.array(AgentSpecSchema).default([
@@ -87,7 +87,7 @@ export const DistraiConfigSchema = z.object({
       autoDetect: z.boolean().default(true),
     })
     .default({ autoDetect: true }),
-  /** Recursion fuse: refuse to spawn children when DISTRAI_DEPTH would exceed this. */
+  /** Recursion fuse: refuse to spawn children when FRITES_DEPTH would exceed this. */
   maxDepth: z.number().int().min(1).default(1),
   /** Per-session safety cap on agentic turns the gateway will drive before forcing a stop. */
   maxTurns: z.number().int().positive().default(60),
@@ -115,7 +115,7 @@ export const DistraiConfigSchema = z.object({
   /**
    * Headless/metered mode: pass ANTHROPIC_API_KEY/OPENAI_API_KEY through to children.
    * Default false = subscription-first (children use the host's OAuth). Set true (or
-   * env DISTRAI_PASS_API_KEYS=1) when running where no keychain/OAuth exists (e.g. CI).
+   * env FRITES_PASS_API_KEYS=1) when running where no keychain/OAuth exists (e.g. CI).
    */
   passApiKeys: z.boolean().default(false),
   /**
@@ -148,15 +148,15 @@ export const DistraiConfigSchema = z.object({
    *   summaries, but NOT each child's answer text. Tight, readable panel.
    * - "interleaved": everything telemetry shows PLUS each child's actual output streamed live,
    *   line-buffered and agent-prefixed (e.g. `[2] …`). Maximum transparency; the panel can get
-   *   long. The env var DISTRAI_PROGRESS_DETAIL overrides this when set.
+   *   long. The env var FRITES_PROGRESS_DETAIL overrides this when set.
    * Either way the FINAL synthesized answer streams live into the answer block as it's produced
    * (so nothing waits to be fully consumed before rendering). Only meaningful when streamProgress
    * is on and the request is streaming.
    */
   progressDetail: z.enum(["telemetry", "interleaved"]).default("telemetry"),
   /**
-   * Gateway log verbosity: debug | info | warn | error. The env var DISTRAI_LOG_LEVEL
-   * overrides this when set. Tail the logs with `distrai logs -f`.
+   * Gateway log verbosity: debug | info | warn | error. The env var FRITES_LOG_LEVEL
+   * overrides this when set. Tail the logs with `frites logs -f`.
    */
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
   /**
@@ -168,8 +168,8 @@ export const DistraiConfigSchema = z.object({
   pricing: z.record(z.string(), ModelPricingSchema).optional(),
 });
 
-export type DistraiConfig = z.infer<typeof DistraiConfigSchema>;
+export type FritesConfig = z.infer<typeof FritesConfigSchema>;
 
-export function resolveConfig(partial?: unknown): DistraiConfig {
-  return DistraiConfigSchema.parse(partial ?? {});
+export function resolveConfig(partial?: unknown): FritesConfig {
+  return FritesConfigSchema.parse(partial ?? {});
 }

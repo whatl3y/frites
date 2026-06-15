@@ -1,5 +1,5 @@
 {
-  "name": "@distrai/isolation",
+  "name": "@frites/isolation",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@distrai/core": "workspace:*"
+    "@frites/core": "workspace:*"
   }
 }

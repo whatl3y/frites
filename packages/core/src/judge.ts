@@ -18,7 +18,7 @@ export interface JudgeVerdict {
 /**
  * Heuristic tie-breaker among test-passing survivors: prefer the smallest diff
  * (smallest blast radius), then fewest files touched. This is the v1 default; an
- * LLM pairwise judge (called with distrai's own credentials) lands in a later phase.
+ * LLM pairwise judge (called with frites's own credentials) lands in a later phase.
  */
 export function heuristicJudge(survivors: Candidate[]): JudgeVerdict {
   if (survivors.length === 0) {

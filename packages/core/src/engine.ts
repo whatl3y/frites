@@ -1,4 +1,4 @@
-import type { DistraiConfig } from "./config";
+import type { FritesConfig } from "./config";
 import { type EngineEventHandler, noopEventHandler } from "./events";
 import { heuristicJudge } from "./judge";
 import type {
@@ -11,7 +11,7 @@ import type {
   Task,
 } from "./types";
 
-// ── Structural deps (satisfied by @distrai/isolation and @distrai/agents) ──
+// ── Structural deps (satisfied by @frites/isolation and @frites/agents) ──
 // Keeping these as interfaces here means the engine has zero CLI/MCP/git coupling
 // and is fully unit-testable with fakes.
 
@@ -66,7 +66,7 @@ export interface EngineDeps {
   runAgent: RunAgentFn;
   runOracle: RunOracleFn;
   oracleCommands: OracleCommands;
-  config: DistraiConfig;
+  config: FritesConfig;
   newRunId: () => string;
   /** External cancellation (client disconnect). */
   signal?: AbortSignal;
@@ -300,7 +300,7 @@ function reconcile(
 
 // ── Helpers ──
 
-export function selectAgents(task: Task, config: DistraiConfig): AgentSpec[] {
+export function selectAgents(task: Task, config: FritesConfig): AgentSpec[] {
   if (task.agents && task.agents.length > 0) return task.agents;
   const base = config.defaultAgents;
   if (base.length === 0) throw new Error("No default agents configured");

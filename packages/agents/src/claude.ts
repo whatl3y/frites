@@ -3,7 +3,7 @@ import type { CliRunnerDef } from "./runner";
 /**
  * Headless Claude Code. Reuses the machine's subscription OAuth (keychain) — no API key
  * needed; for headless use this draws the metered Agent-SDK credit. `--strict-mcp-config`
- * + `--setting-sources user` keep the child from auto-loading distrai (recursion guard).
+ * + `--setting-sources user` keep the child from auto-loading frites (recursion guard).
  */
 export const claudeRunner: CliRunnerDef = {
   kind: "claude-cli",

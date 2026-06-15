@@ -1,15 +1,15 @@
 {
-  "name": "@distrai/cli",
+  "name": "@frites/cli",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "bin": {
-    "distrai": "./src/index.ts"
+    "frites": "./src/index.ts"
   },
   "dependencies": {
-    "@distrai/agents": "workspace:*",
-    "@distrai/core": "workspace:*",
-    "@distrai/isolation": "workspace:*"
+    "@frites/agents": "workspace:*",
+    "@frites/core": "workspace:*",
+    "@frites/isolation": "workspace:*"
   }
 }

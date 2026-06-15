@@ -1,4 +1,4 @@
-import type { ModelPricing } from "@distrai/core";
+import type { ModelPricing } from "@frites/core";
 
 /**
  * Normalized token usage for a single child completion. `inputTokens` is the TOTAL input

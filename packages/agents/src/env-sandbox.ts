@@ -26,7 +26,7 @@ const ALLOWLIST = [
   "CLAUDE_CODE_OAUTH_TOKEN",
 ];
 
-/** Never allowed through — pointing a child at these would make it call distrai again. */
+/** Never allowed through — pointing a child at these would make it call frites again. */
 const SCRUB_EXACT = [
   "ANTHROPIC_BASE_URL",
   "ANTHROPIC_API_URL",
@@ -37,7 +37,7 @@ const SCRUB_EXACT = [
 
 export interface ChildEnvOptions {
   parentEnv?: NodeJS.ProcessEnv;
-  /** Current process DISTRAI_DEPTH; the child gets depth + 1. */
+  /** Current process FRITES_DEPTH; the child gets depth + 1. */
   depth: number;
   maxDepth: number;
   /** Subscription-first by default: API keys are withheld so CLIs use OAuth. */
@@ -48,8 +48,8 @@ export interface ChildEnvOptions {
 export function assertDepth(depth: number, maxDepth: number): void {
   if (depth >= maxDepth) {
     throw new Error(
-      `distrai recursion fuse tripped (DISTRAI_DEPTH=${depth} >= maxDepth=${maxDepth}). ` +
-        `A child agent appears to be invoking distrai again. Refusing to spawn.`,
+      `frites recursion fuse tripped (FRITES_DEPTH=${depth} >= maxDepth=${maxDepth}). ` +
+        `A child agent appears to be invoking frites again. Refusing to spawn.`,
     );
   }
 }
@@ -68,11 +68,11 @@ export function buildChildEnv(opts: ChildEnvOptions): NodeJS.ProcessEnv {
   if (opts.extraEnv) Object.assign(env, opts.extraEnv);
   // Defense in depth: strip base-URL vars even if reintroduced via extraEnv.
   for (const key of SCRUB_EXACT) delete env[key];
-  env.DISTRAI_DEPTH = String(opts.depth + 1);
-  env.DISTRAI_CHILD = "1";
+  env.FRITES_DEPTH = String(opts.depth + 1);
+  env.FRITES_CHILD = "1";
   return env;
 }
 
 export function currentDepth(parentEnv: NodeJS.ProcessEnv = process.env): number {
-  return Number(parentEnv.DISTRAI_DEPTH ?? "0") || 0;
+  return Number(parentEnv.FRITES_DEPTH ?? "0") || 0;
 }

@@ -5,7 +5,7 @@ import {
   resolveConfig,
   runActionCouncil,
   tryParseAction,
-} from "@distrai/core";
+} from "@frites/core";
 
 describe("parseAction", () => {
   it("parses a tool action", () => {
