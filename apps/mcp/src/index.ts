@@ -138,6 +138,23 @@ server.registerTool(
 
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
+
+  // Self-terminate the moment the MCP client goes away, so we never linger as an
+  // orphan. The client launches us through a wrapper (pnpm → tsx → node) that does
+  // not forward shutdown to this grandchild, so without this a stray server leaks
+  // on every session that ends and they pile up fast. Cover each disconnect path:
+  // stdin EOF (client closed the pipe), termination signals, and reparenting to
+  // PID 1 (our launcher died and left us orphaned).
+  const shutdown = () => process.exit(0);
+  process.stdin.on("end", shutdown);
+  process.stdin.on("close", shutdown);
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
+  const orphanWatch = setInterval(() => {
+    if (process.ppid === 1) shutdown();
+  }, 5000);
+  orphanWatch.unref();
+
   await server.connect(transport);
   // stdout is the MCP channel — all logging must go to stderr.
   console.error("frites MCP server running on stdio");
