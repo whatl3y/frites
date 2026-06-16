@@ -1,5 +1,8 @@
 # frites evaluation & benchmarking
 
+> This is the canonical runbook for the evaluation harnesses. For a short orientation within the
+> docs site, see [development/evaluation.md](../docs/development/evaluation.md).
+
 Two harnesses live here:
 
 - **`value-gate.ts`** (`pnpm eval`) — frites-specific A/B: does fan-out beat a single agent on a

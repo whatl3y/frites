@@ -1,0 +1,22 @@
+root: ./
+
+structure:
+  readme: README.md
+  summary: SUMMARY.md
+
+redirects:
+  # Speculative future coverage only. frites has never been published to
+  # GitBook (no gitbook.io / app.gitbook URL anywhere in the repo), so there
+  # are no existing GitBook URLs to preserve today. The real preservation
+  # layer for the only known external links (GitHub-rendered docs/*.md blob
+  # URLs the root README points at) is the in-repo STUB FILES — see the
+  # ARCHITECTURE.md / SYNTHESIS.md / TASKS.md redirect stubs.
+  #
+  # Keys must be lowercase: GitBook derives a historical page slug by
+  # lowercasing the basename. Paths are relative to root (docs/), no leading
+  # slashes. A redirect fires only when no live page occupies the path, so
+  # these are inert while the stubs exist and activate only if the stubs are
+  # ever deleted. No `architecture:` key: it would collide permanently with
+  # the live architecture/ section and could never fire.
+  synthesis: concepts/synthesis-and-reconciliation.md
+  tasks: roadmap/deferred-tasks.md
