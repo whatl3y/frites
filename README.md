@@ -91,4 +91,7 @@ on `/v1/responses`. Details: [Current status](docs/roadmap/current-status.md).
 
 ## License
 
-See the repository for full license details.
+frites is licensed under the [Apache License 2.0](LICENSE).
+
+Unless required by applicable law or agreed to in writing, frites is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.

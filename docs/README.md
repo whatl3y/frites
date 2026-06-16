@@ -2,11 +2,9 @@
   <img src="assets/frites-transparent.png" alt="french fries, nothing better, full stop" width="96" />
 </p>
 
-# frites
+_frites: a coordinating ensemble proxy for Claude Code & Codex._
 
-_frites AI: a coordinating ensemble proxy for Claude Code & Codex._
-
-Point your Claude Code or Codex at frites and every prompt is answered by a **council of agents** instead of one. frites fans the prompt out to multiple models, has them work independently, then synthesizes a single vetted answer, using the subscriptions you're **already logged into** (no API keys). It decides per-prompt whether fanning out is even worth the spend. The bet is that a cross-checked council yields better output than any single agent; the cost is latency and metered spend (see [the tradeoff](architecture/risks-and-tradeoffs.md)).
+Point your Claude Code or Codex at frites and go. Every prompt is answered by a **council of agents** instead of one. frites fans the prompt out to multiple models, has them work independently, then synthesizes a single vetted answer, using the subscriptions you're **already logged into** (no API keys). It decides per-prompt whether fanning out is even worth the spend. The bet is that a cross-checked council yields better output than any single agent; the cost is latency and metered spend (see [the tradeoff](architecture/risks-and-tradeoffs.md)).
 
 ## Two ways to use it
 
@@ -27,4 +25,4 @@ Point your Claude Code or Codex at frites and every prompt is answered by a **co
 
 ## Repository and license
 
-frites is an open-source monorepo. See the [repository structure](development/repository-structure.md) for how the packages fit together, and consult the repository root for full license details.
+frites is an Apache-2.0 licensed open-source monorepo. See the [repository structure](development/repository-structure.md) for how the packages fit together, and consult the repository root [LICENSE](../LICENSE) for the full license text.

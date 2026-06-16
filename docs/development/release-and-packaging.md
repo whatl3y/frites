@@ -16,6 +16,8 @@ Five packages are publishable. Each one declares `"publishConfig": { "access": "
 
 Each package exposes its built entry via `"main": "./dist/index.js"`, `"types": "./dist/index.d.ts"`, and `"exports": { ".": "./dist/index.js" }`. Because `files` is restricted to `dist`, the published tarballs contain compiled JavaScript and `.d.ts` declarations only, never `src/` or `test/`.
 
+Each publishable package declares `"license": "Apache-2.0"` and carries its own `LICENSE` file so the npm tarball includes the full Apache License 2.0 text. The repository root also has the canonical `LICENSE` file for the source tree.
+
 Inter-package dependencies use `workspace:*` (e.g. `@frites/cli` depends on `@frites/agents`, `@frites/core`, `@frites/gateway`, `@frites/isolation`); pnpm rewrites these to real versions at publish time.
 
 ## Build artifacts

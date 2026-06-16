@@ -22,6 +22,10 @@ pnpm --filter @frites/cli publish --dry-run --access public
 
 Use `pnpm publish` rather than running `npm publish` directly from this workspace package so workspace dependencies are packed correctly for npm.
 
+## License
+
+Apache-2.0. See the `LICENSE` file shipped with this package.
+
 ## Pre-publish checklist
 
 - Confirm `version` in `apps/cli/package.json` is the version you want to publish.

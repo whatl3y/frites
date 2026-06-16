@@ -2,6 +2,7 @@
   "name": "@frites/cli",
   "version": "0.0.0",
   "description": "CLI for the frites multi-agent gateway and coding council",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

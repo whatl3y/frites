@@ -2,6 +2,7 @@
   "name": "@frites/isolation",
   "version": "0.0.0",
   "description": "Worktree isolation helpers for frites",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
