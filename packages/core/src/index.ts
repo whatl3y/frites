@@ -7,4 +7,5 @@ export * from "./answer-council.js";
 export * from "./agent-loop.js";
 export * from "./oracle.js";
 export * from "./judge.js";
+export * from "./synthesis.js";
 export * from "./engine.js";

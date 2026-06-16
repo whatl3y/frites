@@ -70,6 +70,29 @@ describe("WorktreeManager (real git)", () => {
     expect(readFileSync(join(repo, "foo.txt"), "utf8")).toBe("hello world\n");
   });
 
+  it("seeds a fresh worktree from a captured diff (synthesis seed path)", async () => {
+    const repo = makeRepo();
+    const wt = new WorktreeManager();
+    const base = await wt.resolveBase(repo);
+
+    // A "child" worktree produces a diff.
+    const child = await wt.create(repo, "run1", "child", base.sha);
+    await writeFile(join(child.path, "src.ts"), "export const y = 2;\n");
+    const { diff } = await wt.captureDiff(child.path);
+
+    // A separate "synthesis" worktree from the SAME base is seeded with that diff.
+    const synth = await wt.create(repo, "run1", "synthesis-1", base.sha);
+    await wt.applyDiffToWorktree(synth.path, diff);
+    expect(readFileSync(join(synth.path, "src.ts"), "utf8")).toBe("export const y = 2;\n");
+
+    // The seeded change is captured back out of the synthesis worktree.
+    const captured = await wt.captureDiff(synth.path);
+    expect(captured.filesTouched).toContain("src.ts");
+
+    await wt.cleanup(repo, child);
+    await wt.cleanup(repo, synth);
+  });
+
   it("refuses non-git directories with a helpful error", async () => {
     const dir = mkdtempSync(join(tmpdir(), "frites-nogit-"));
     repos.push(dir);

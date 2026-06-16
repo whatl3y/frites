@@ -119,6 +119,18 @@ export class WorktreeManager implements WorktreeManagerLike {
   }
 
   /**
+   * Seed a synthesis worktree by applying a captured candidate diff into it. The worktree is created
+   * from the same base SHA the diff was captured against, so a 3-way apply is conflict-free. `--index`
+   * stages the result; the subsequent captureDiff (git add -A) re-stages, so this composes cleanly.
+   */
+  async applyDiffToWorktree(worktreePath: string, diff: string): Promise<void> {
+    await gitOrThrow(["apply", "--3way", "--index"], {
+      cwd: worktreePath,
+      input: diff.endsWith("\n") ? diff : diff + "\n",
+    });
+  }
+
+  /**
    * Land an approved diff onto a FRESH branch — the one mandatory human gate.
    * Never touches the user's current branch's history and never pushes.
    */

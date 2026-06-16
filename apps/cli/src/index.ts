@@ -63,7 +63,7 @@ function printTopUsage(): void {
       "Manage:  frites status | restart | stop | uninstall",
       "Logs:    frites logs [-f|--follow] [-n N] [--level debug|info|warn|error]",
       "Gateway: frites gateway [--port N] [--host addr]  # run in foreground",
-      'Run:     frites "<task>" [--repo path] [--n N] [--agents claude,codex] [--accept ...] [--base ref] [--apply]',
+      'Run:     frites "<task>" [--repo path] [--n N] [--agents claude,codex] [--accept ...] [--base ref] [--apply | --apply-candidate <id>]',
       "Config:  frites config <init|show|get|set|unset|validate|path> [--global] [--repo path]",
       "Compat:  frites service <install|uninstall|restart|status|logs> [--port N]",
     ].join("\n"),
@@ -224,6 +224,7 @@ interface RunArgs {
   accept?: string;
   base?: string;
   apply: boolean;
+  applyCandidate?: string;
 }
 
 function parseRunArgs(argv: string[]): RunArgs {
@@ -236,7 +237,10 @@ function parseRunArgs(argv: string[]): RunArgs {
     else if (a === "--accept") out.accept = argv[++i];
     else if (a === "--base") out.base = argv[++i];
     else if (a === "--apply") out.apply = true;
-    else if (!a.startsWith("--")) out.task = out.task ? `${out.task} ${a}` : a;
+    else if (a === "--apply-candidate") {
+      out.apply = true;
+      out.applyCandidate = argv[++i];
+    } else if (!a.startsWith("--")) out.task = out.task ? `${out.task} ${a}` : a;
   }
   return out;
 }
@@ -266,6 +270,17 @@ function describe(e: EngineEvent): string {
     return `■ ${e.agentId}: ${e.status} (${e.filesTouched} file(s))`;
   if (e.type === "oracle-finished")
     return `  oracle ${e.agentId}: ${e.passed ? "PASS" : "FAIL"}`;
+  if (e.type === "synthesis-skipped") return `⚗︎ synthesis skipped: ${e.reason}`;
+  if (e.type === "synthesis-started")
+    return `⚗︎ synthesizing from ${e.inputAgents.join(", ")}${
+      e.seededFrom ? ` (seeded from ${e.seededFrom})` : ""
+    }…`;
+  if (e.type === "synthesis-progress") return `  · synthesis: ${e.message}`;
+  if (e.type === "synthesis-finished")
+    return `⚗︎ synthesis: ${e.status} (${e.filesTouched} file(s))`;
+  if (e.type === "synthesis-oracle-started") return `  testing synthesized candidate…`;
+  if (e.type === "synthesis-oracle-finished")
+    return `  synthesis oracle: ${e.passed ? "PASS" : "FAIL"}`;
   if (e.type === "reconcile") return `↳ ${e.decision} (${e.survivors} survivor(s))`;
   if (e.type === "run-started") return `Consulting ${e.n} agent(s)…`;
   if (e.type === "warning") return `⚠ ${e.message}`;
@@ -314,21 +329,49 @@ async function runTask(argv: string[]): Promise<void> {
   console.log(result.rationale);
   for (const c of result.candidates) {
     console.log(
-      `  ${c.agentId} [${c.kind}] ${c.status} — ${c.filesTouched.length} file(s), ${diffSize(c.diff)} Δlines`,
+      `  ${c.agentId}${c.synthesis ? " ⚗︎" : ""} [${c.kind}] ${c.status} — ${c.filesTouched.length} file(s), ${diffSize(c.diff)} Δlines`,
     );
+  }
+  const s = result.synthesis;
+  if (s) {
+    if (!s.attempted) console.log(`Synthesis skipped — ${s.skippedReason ?? "not eligible"}.`);
+    else if (s.recommended)
+      console.log(`Synthesis from ${s.inputs.join(", ")} passed the oracle and is recommended.`);
+    else
+      console.log(
+        `Synthesis attempted from ${s.inputs.join(", ")} but not used — ${s.fallbackReason ?? "fell back"}.`,
+      );
   }
   console.log(result.costNote);
   if (result.recommended) console.log(`\nRecommended: ${result.recommended.agentId}`);
 
-  if (args.apply && result.recommended?.diff) {
-    const { branch } = await new WorktreeManager().applyToBranch(
-      repo,
-      result.runId,
-      result.recommended.diff,
+  // Resolve which candidate to apply: an explicit --apply-candidate wins over the recommendation.
+  const toApply = args.applyCandidate
+    ? result.candidates.find((c) => c.agentId === args.applyCandidate)
+    : result.recommended;
+  if (args.apply && args.applyCandidate && !toApply) {
+    console.error(
+      `No candidate "${args.applyCandidate}" in this run. Available: ${result.candidates
+        .map((c) => c.agentId)
+        .join(", ")}.`,
     );
-    console.log(`Applied onto new branch: ${branch}`);
-  } else if (result.recommended) {
-    console.log("Re-run with --apply to land it on a fresh branch.");
+    process.exit(1);
+  }
+  // Requested a real candidate that produced no diff (errored/empty/timed-out): fail loudly rather
+  // than silently falling back to a hint about the recommended one (matches frites_apply's behavior).
+  if (args.apply && args.applyCandidate && toApply && !toApply.diff) {
+    console.error(
+      `Candidate "${args.applyCandidate}" has no diff to apply (status: ${toApply.status}).`,
+    );
+    process.exit(1);
+  }
+  if (args.apply && toApply?.diff) {
+    const { branch } = await new WorktreeManager().applyToBranch(repo, result.runId, toApply.diff);
+    console.log(`Applied ${toApply.agentId} onto new branch: ${branch}`);
+  } else if (result.recommended && !args.applyCandidate) {
+    console.log(
+      "Re-run with --apply to land the recommended diff on a fresh branch (or --apply-candidate <id> for a specific one).",
+    );
   }
 }
 

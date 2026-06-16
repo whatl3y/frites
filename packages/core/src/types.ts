@@ -57,6 +57,10 @@ export interface Candidate {
   outputTokens?: number;
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
+  /** True when this candidate was produced by the synthesis stage (not a fanned-out child). */
+  synthesis?: boolean;
+  /** For a synthesis candidate: the agent ids whose passing diffs it integrated. */
+  synthesizedFrom?: string[];
 }
 
 export interface CommandResult {
@@ -84,8 +88,33 @@ export type ReconcileDecision =
   | "single" // only one agent; it succeeded
   | "tests" // oracle filtered many down to exactly one survivor
   | "judge" // multiple survivors; LLM/heuristic tie-break
+  | "synthesis" // an oracle-passing synthesized candidate was preferred over the originals
   | "near-miss" // no survivor passed the oracle; closest surfaced
   | "no-oracle"; // no executable oracle existed; best-effort pick
+
+/**
+ * Outcome of the optional synthesis stage. Present on RunResult only when synthesisMode != "off".
+ * `attempted` is false when synthesis was eligible-checked but skipped (with a reason); true when a
+ * synthesizer actually ran. Surfaces enough for the MCP/CLI to explain what happened and why a
+ * fallback occurred.
+ */
+export interface SynthesisInfo {
+  attempted: boolean;
+  /** Why synthesis was skipped (only when attempted === false). */
+  skippedReason?: string;
+  /** Passing candidate ids fed to the synthesizer. */
+  inputs: string[];
+  /** Reserved agent id of the synthesizer run (e.g. "synthesis-1"), when attempted. */
+  synthesizerId?: string;
+  /** The candidate whose diff seeded the synthesis worktree, if seeding succeeded. */
+  seededFrom?: string;
+  /** Did the synthesized candidate pass the oracle? */
+  passed?: boolean;
+  /** Was the synthesized candidate ultimately recommended over the originals? */
+  recommended?: boolean;
+  /** When synthesis ran but was not recommended, why frites fell back to an original. */
+  fallbackReason?: string;
+}
 
 export interface RunResult {
   runId: string;
@@ -95,6 +124,8 @@ export interface RunResult {
   decision: ReconcileDecision;
   rationale: string;
   costNote: string;
+  /** Present only when synthesis is enabled (synthesisMode != "off"). */
+  synthesis?: SynthesisInfo;
 }
 
 export interface OracleCommands {

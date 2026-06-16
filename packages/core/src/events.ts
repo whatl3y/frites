@@ -14,6 +14,12 @@ export type EngineEvent =
     }
   | { type: "oracle-started"; agentId: string }
   | { type: "oracle-finished"; agentId: string; passed: boolean }
+  | { type: "synthesis-skipped"; reason: string }
+  | { type: "synthesis-started"; inputAgents: string[]; seededFrom?: string }
+  | { type: "synthesis-progress"; message: string }
+  | { type: "synthesis-finished"; status: CandidateStatus; filesTouched: number }
+  | { type: "synthesis-oracle-started" }
+  | { type: "synthesis-oracle-finished"; passed: boolean }
   | { type: "reconcile"; decision: ReconcileDecision; survivors: number }
   | { type: "warning"; message: string }
   | { type: "done"; runId: string; recommended?: string };

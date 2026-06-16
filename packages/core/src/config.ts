@@ -187,6 +187,53 @@ export const FritesConfigSchema = z.object({
    * first, then a prefix match (so "gpt-5.5" covers "gpt-5.5-2026-…"). Omit to disable estimation.
    */
   pricing: z.record(z.string(), ModelPricingSchema).optional(),
+  /**
+   * Worktree synthesis stage (frites_implement / CLI run). After children run and the oracle
+   * filters them, optionally ask ONE synthesizer agent to integrate the strongest ideas from the
+   * passing candidates into a single implementation, captured from git and verified by the SAME
+   * oracle. Never a mechanical diff merge.
+   * - "passing-only" (default): synthesize when at least `synthesisMinCandidates` candidates pass
+   *   the oracle. This only touches the already-expensive worktree path, only fires when there's an
+   *   oracle and >=2 passers, and falls back to the best child on any failure — so it is on by
+   *   default to deliver the quality win without a knob hunt.
+   * - "off": exact winner-take-one behavior; no extra synthesizer spend.
+   * Near-miss synthesis (over candidates that failed the oracle) is intentionally out of scope for v1.
+   */
+  synthesisMode: z.enum(["off", "passing-only"]).default("passing-only"),
+  /**
+   * The agent that performs synthesis. When omitted, frites uses the first claude child among the
+   * selected agents (claude enforces --max-budget-usd, so synthesisBudgetUsd actually bites there),
+   * falling back to the first selected agent. Synthesis benefits from strong integration judgment.
+   */
+  synthesisAgent: AgentSpecSchema.optional(),
+  /** Minimum oracle-passing candidates required before synthesis runs. */
+  synthesisMinCandidates: z.number().int().min(2).default(2),
+  /** Cap (chars) on the combined non-seed candidate diffs embedded in the synthesis prompt; over the
+   *  cap, a diff is replaced with its file list + the read-only worktree path. */
+  synthesisMaxDiffChars: z.number().int().positive().default(60_000),
+  /**
+   * Guardrail against an over-broad synthesis: the synthesized diff is preferred only when its
+   * changed-line count is <= this factor × the COMBINED changed-line count of the passing inputs.
+   * Past that, frites keeps the best original passing child instead. Preferring a passing-but-huge
+   * synthesis over a tighter passing child would invert the smallest-blast-radius safety stance,
+   * especially when the oracle is weak. Default 1.5 (a faithful integration is ~the union + glue).
+   */
+  synthesisMaxBlastFactor: z.number().positive().default(1.5),
+  /** Idle timeout for the synthesizer (ms). Falls back to perChildTimeoutMs when unset. */
+  synthesisTimeoutMs: z.number().int().positive().optional(),
+  /**
+   * Absolute wall-clock ceiling for the synthesizer (ms). Unlike perChildHardTimeoutMs (off by
+   * default), synthesis ships a concrete default because it is a single serialized tail step where a
+   * hard bound is cheap and high-value, and a runaway synthesizer would extend an already long
+   * frites_implement call. Default 1_800_000 = 30 min.
+   */
+  synthesisHardTimeoutMs: z.number().int().positive().default(1_800_000),
+  /**
+   * Spend cap for the synthesizer. NOTE: enforced as a hard cap ONLY for claude synthesizers
+   * (`--max-budget-usd`); codex has no budget flag, so this is advisory for codex (the hard timeout
+   * is the real ceiling there). Falls back to perChildBudgetUsd when unset.
+   */
+  synthesisBudgetUsd: z.number().positive().optional(),
 });
 
 export type FritesConfig = z.infer<typeof FritesConfigSchema>;

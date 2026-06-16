@@ -99,6 +99,20 @@ export function describeEvent(e: EngineEvent): string {
       return `Testing ${e.agentId}…`;
     case "oracle-finished":
       return `${e.agentId} oracle: ${e.passed ? "PASS" : "FAIL"}`;
+    case "synthesis-skipped":
+      return `Synthesis skipped: ${e.reason}`;
+    case "synthesis-started":
+      return `Synthesizing from ${e.inputAgents.join(", ")}${
+        e.seededFrom ? ` (seeded from ${e.seededFrom})` : ""
+      }…`;
+    case "synthesis-progress":
+      return `synthesis: ${e.message}`;
+    case "synthesis-finished":
+      return `Synthesis finished (${e.status}, ${e.filesTouched} file(s))`;
+    case "synthesis-oracle-started":
+      return `Testing synthesized candidate…`;
+    case "synthesis-oracle-finished":
+      return `Synthesis oracle: ${e.passed ? "PASS" : "FAIL"}`;
     case "reconcile":
       return `Reconciling (${e.decision}, ${e.survivors} survivor(s))`;
     case "warning":
@@ -116,10 +130,13 @@ export function toStructured(result: RunResult): Record<string, unknown> {
     rationale: result.rationale,
     recommended: result.recommended?.agentId ?? null,
     costNote: result.costNote,
+    synthesis: result.synthesis ?? null,
     candidates: result.candidates.map((c) => ({
       agentId: c.agentId,
       kind: c.kind,
       status: c.status,
+      synthesis: c.synthesis ?? false,
+      synthesizedFrom: c.synthesizedFrom,
       filesTouched: c.filesTouched.length,
       diffSize: diffSize(c.diff),
       inputTokens: c.inputTokens,
@@ -130,6 +147,22 @@ export function toStructured(result: RunResult): Record<string, unknown> {
       error: c.error,
     })),
   };
+}
+
+/** One-line synthesis status for human-facing output, or null when synthesis didn't run. */
+function synthesisLine(result: RunResult): string | null {
+  const s = result.synthesis;
+  if (!s) return null;
+  if (!s.attempted) return `Synthesis skipped — ${s.skippedReason ?? "not eligible"}.`;
+  const from = s.inputs.join(", ");
+  if (s.recommended) {
+    return `Synthesis from ${from} passed the oracle and is the recommendation${
+      s.seededFrom ? ` (seeded from ${s.seededFrom})` : ""
+    }.`;
+  }
+  return `Synthesis was attempted from ${from} but was not used — ${
+    s.fallbackReason ?? "fell back"
+  }. Recommending the best original passing candidate.`;
 }
 
 /** Compact token count, e.g. 11163 → "11.2k". */
@@ -171,16 +204,23 @@ export function formatResultText(result: RunResult): string {
   for (const c of result.candidates) {
     const o = oracleById.get(c.agentId);
     const oracle = o?.hadOracle ? (o.passed ? "pass" : "fail") : "n/a";
+    const label = c.synthesis ? `${c.agentId} ⚗︎` : c.agentId;
     lines.push(
-      `| ${c.agentId} | ${c.kind} | ${c.status} | ${c.filesTouched.length} | ${diffSize(c.diff)} | ${tokensCell(c)} | ${oracle} |`,
+      `| ${label} | ${c.kind} | ${c.status} | ${c.filesTouched.length} | ${diffSize(c.diff)} | ${tokensCell(c)} | ${oracle} |`,
     );
   }
   lines.push("");
+  const synth = synthesisLine(result);
+  if (synth) {
+    lines.push(synth);
+    lines.push("");
+  }
   lines.push(`_${result.costNote}_`);
   lines.push("");
   lines.push(
     `Review the linked diffs. To land the recommended one on a fresh branch, call ` +
-      `\`frites_apply\` with runId="${result.runId}".`,
+      `\`frites_apply\` with runId="${result.runId}"` +
+      ` (or add candidateId="<agent>" to land a specific candidate instead).`,
   );
   return lines.join("\n");
 }

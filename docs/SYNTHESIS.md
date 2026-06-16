@@ -123,7 +123,16 @@ The reconciliation algorithm is implemented in `reconcile`:
 
 `heuristicJudge` lives in `packages/core/src/judge.ts`. It ranks candidates by smallest changed-line count, then by fewest files touched. This is a deterministic smallest-blast-radius tie-breaker.
 
-The architecture docs mention a future or broader design where an LLM judge tie-breaks test-passing candidates and optional synthesis can become candidate N+1. The current implementation does not do that yet. Today, the worktree path is oracle filtering plus deterministic heuristic selection.
+### Synthesis Stage (on by default; `synthesisMode`)
+
+When `synthesisMode` is `"passing-only"` (the default) and at least `synthesisMinCandidates` (default 2) candidates pass the oracle, a synthesis stage runs after oracle filtering and before final reconciliation. Set `synthesisMode: "off"` to restore pure winner-take-one. Synthesis only affects the worktree path (`frites_implement` / CLI run), not the gateway (`packages/core/src/synthesis.ts`, wired into `engine.ts`):
+
+1. A fresh worktree is created from the same base SHA and **seeded** with the best passing candidate's diff (via `git apply --3way`), so the synthesizer refines a known-good tree rather than reconstructing the agreed core. It falls back to fresh-from-base if the seed cannot apply.
+2. One synthesizer agent (the first claude child by default, so `--max-budget-usd` is honored) integrates the other passing candidates' deltas — using their diffs and read-only worktrees as source material, never as mandatory patches. It is never a mechanical merge.
+3. The synthesized result is captured from git like any candidate and run through the **same** oracle.
+4. The synthesized candidate is preferred only when it passes that oracle AND its blast radius stays within `synthesisMaxBlastFactor ×` the combined size of the passing inputs. Otherwise frites falls back to the best original passing candidate and records why.
+
+Preferring synthesis is deliberately gated: passing the oracle is the same bar the children already cleared, so an unconditional preference for a usually-larger synthesis would invert the smallest-blast-radius stance — especially when the oracle is weak. The result reports whether synthesis was attempted, its inputs, whether it passed, and any fallback reason; `frites_apply` accepts a `candidateId` so a reviewer can still land a tighter passing child instead.
 
 ## 5. What “Best Output” Means Today
 
@@ -155,7 +164,7 @@ Child failures are intentionally included as inputs rather than aborting the who
 
 Background and utility turn suppression depends on model-name heuristics. It is reliable for the configured small/fast model labels, but it is not a separate explicit request-type field.
 
-The current worktree path does not synthesize a merged diff from multiple candidates. It recommends one complete candidate diff. This avoids the risks of mechanical N-way code merges, such as duplicated declarations, incompatible partial solutions, and changes that compile only accidentally.
+By default the worktree path recommends one complete candidate diff and does not merge candidates, which avoids the risks of mechanical N-way code merges (duplicated declarations, incompatible partial solutions, changes that compile only accidentally). The optional synthesis stage above never does a mechanical merge either: it asks one agent to produce a single integrated implementation that is then captured from git and re-verified by the same oracle, and it is only preferred when it both passes and stays within a configurable blast-radius ceiling.
 
 ## Bottom Line
 

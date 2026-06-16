@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/frites.jpg" alt="frites logo" width="96" />
+  <img src="docs/assets/frites-transparent.png" alt="frites logo" width="96" />
 </p>
 
 # frites
@@ -9,7 +9,9 @@
 Point your Claude Code / Codex at frites and every prompt is answered by a **council of agents**
 instead of one: frites fans the prompt out to multiple models, has them work independently, then
 synthesizes a single vetted answer — using the subscriptions you're **already logged into** (no API
-keys). It decides per-prompt whether fanning out is even worth the spend.
+keys). It decides per-prompt whether fanning out is even worth the spend. The bet is that a
+cross-checked council yields better output than any single agent; the cost is latency and metered
+spend (see [the tradeoff](#heavy-code-edits-mcp-worktree-mode)).
 
 Two ways to use it:
 
@@ -158,6 +160,8 @@ frites config show --global
 | `defaultN` | how many child agents (1–5) |
 | `defaultAgents` | which agents + models — each `{ kind: "claude-cli"\|"codex-cli", model, framing }`. **Order is load-bearing:** `defaultAgents[0]` doubles as the synthesizer that merges the council (there is no separate synthesizer setting); children round-robin the whole list. Reorder to change which agent synthesizes — but note slot 0 is then also child index 0. |
 | `perChildBudgetUsd` / `perChildTimeoutMs` | per-child guardrails |
+| `synthesisMode` | worktree mode only: after the oracle filters candidates, synthesize the best passing ones into one **verified** diff. `passing-only` (default — runs when ≥2 pass) or `off` (winner-take-one). Adds a synthesizer + extra oracle pass, so it's slower — see the tradeoff note above. |
+| `synthesisAgent` / `synthesisMinCandidates` / `synthesisMaxBlastFactor` / `synthesisMaxDiffChars` / `synthesisBudgetUsd` / `synthesisTimeoutMs` / `synthesisHardTimeoutMs` | synthesis tuning: which agent synthesizes (defaults to the first claude child so its `--max-budget-usd` is enforced), how many passers trigger it (2), the size ceiling for *preferring* the synthesis (1.5× combined input size), the prompt diff cap, and the synthesizer's spend / idle / wall-clock (30 min) limits |
 | `pricing` | optional per-model rate table (`{ "<model>": { inputPerMtok, outputPerMtok, cachedInputPerMtok?, cacheWritePerMtok? } }`, in $/million tokens) used to **estimate** child spend when a backend doesn't self-report it. claude reports cost authoritatively; codex on the ChatGPT backend reports none, so without rates its spend reads as unknown (and looked "free"). Opt-in — no built-in rates; estimated figures are marked `~`. Keys match a model exactly, else by prefix either direction. |
 | `streamProgress` | stream live council progress to the client during a turn (default `true`) |
 | `progressDetail` | per-agent panel detail: `telemetry` (default — state + token/time/cost counters) or `interleaved` (also stream each child's output live, agent-prefixed) |
@@ -189,6 +193,28 @@ besides `fanOutPolicy` and `defaultN`.
 The gateway already edits code inline (it emits the `Read`/`Edit`/`Bash` calls your host executes).
 The worktree path is for when you want N **competing** full implementations run in parallel, with
 your test suite filtering them, yielding **one vetted diff** to apply to a fresh branch.
+
+### Synthesis: combine the best of N implementations
+
+By default (`synthesisMode: "passing-only"`), once at least two candidates pass your oracle frites
+runs one more step instead of just picking a winner: it creates a fresh worktree from the same base
+commit, **seeds** it with the best passing diff, and asks a synthesizer agent to fold the strongest
+ideas from the others into one integrated implementation. That candidate is captured from git and
+re-run through the **same** build/lint/test oracle, and it's recommended only if it passes *and*
+stays within a sane size ceiling (`synthesisMaxBlastFactor`, default 1.5× the combined size of the
+inputs); otherwise frites falls back to the best individual passing child and tells you why. It never
+mechanically merges diffs, and you can always land a specific child instead with
+`frites_apply … candidateId=<agent>` (or `frites "…" --apply-candidate <id>`). Set
+`synthesisMode: "off"` for plain winner-take-one.
+
+> **The tradeoff — better output, slower.** This is frites' core bet: a council of independent agents,
+> cross-checked and synthesized, should produce a more correct and complete result than any single
+> agent — but you pay for it in wall-clock time (and metered spend). Worktree mode is the far end of
+> that curve: N full implementations run to completion, then an *extra* synthesizer pass + oracle run
+> before you get a diff — minutes, not seconds. The payoff is that, unlike the gateway's answer
+> synthesis, the worktree result is **verified** (it actually passed your tests), not just adjudicated.
+> Reach for it when correctness matters more than latency; use the gateway, `synthesisMode: "off"`, or
+> fewer agents when you want speed.
 
 Register once for Claude Code (available in every repo):
 
@@ -236,11 +262,11 @@ Apps are thin; all logic lives in `packages/core`, so all surfaces share one eng
 
 ## Status & limits
 
-Working and tested (67/67 unit tests + live smoke against a real `claude` client): the gateway (both
+Working and tested (126/126 unit tests + live smoke against a real `claude` client): the gateway (both
 surfaces, SSE streaming, live per-agent telemetry + live answer streaming, fan-out + synthesis,
 LLM fan-out judge, `fanOutScope` first-turn scoping + background-model bypass, per-turn council
 recap, cost telemetry), the launchd service, the MCP worktree path (worktrees → tests-as-oracle →
-vetted diff → apply), and the config CLI.
+optional cross-candidate synthesis → vetted diff → apply), and the config CLI.
 
 The gateway handles **both Q&A/reasoning and code edits** — on a coding turn it emits the
 `Read`/`Edit`/`Bash` `tool_use` your host executes on the real files (verified end-to-end: a real

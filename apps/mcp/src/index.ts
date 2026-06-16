@@ -89,38 +89,56 @@ server.registerTool(
   {
     title: "frites: apply a vetted result",
     description:
-      "Apply the recommended diff from a previous frites_implement run onto a FRESH " +
-      "branch (frites/<runId>). Requires a clean working tree. Never pushes.",
+      "Apply a diff from a previous frites_implement run onto a FRESH branch (frites/<runId>). " +
+      "Applies the recommended candidate by default, or pass candidateId to land a specific one " +
+      "(e.g. a tighter passing child instead of a synthesized result). Requires a clean working " +
+      "tree. Never pushes.",
     inputSchema: {
       runId: z.string(),
       repoPath: z.string(),
+      candidateId: z
+        .string()
+        .optional()
+        .describe("Apply this candidate's diff instead of the recommended one"),
     },
   },
   async (args: any) => {
     try {
       const result = await readResult(args.repoPath, args.runId);
-      if (!result.recommended || !result.recommended.diff) {
+      const chosen = args.candidateId
+        ? result.candidates.find((c) => c.agentId === args.candidateId)
+        : result.recommended;
+      if (args.candidateId && !chosen) {
         return {
           content: [
-            { type: "text", text: `Run ${args.runId} has no recommended diff to apply.` },
+            {
+              type: "text",
+              text: `Run ${args.runId} has no candidate "${args.candidateId}". Available: ${result.candidates
+                .map((c) => c.agentId)
+                .join(", ")}.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      if (!chosen || !chosen.diff) {
+        return {
+          content: [
+            { type: "text", text: `Run ${args.runId} has no diff to apply for that candidate.` },
           ],
           isError: true,
         };
       }
       const wt = new WorktreeManager();
-      const { branch } = await wt.applyToBranch(
-        args.repoPath,
-        args.runId,
-        result.recommended.diff,
-      );
+      const { branch } = await wt.applyToBranch(args.repoPath, args.runId, chosen.diff);
       return {
         content: [
           {
             type: "text",
-            text: `Applied ${result.recommended.agentId}'s diff onto new branch '${branch}'. Review and commit.`,
+            text: `Applied ${chosen.agentId}'s diff onto new branch '${branch}'. Review and commit.`,
           },
         ],
-        structuredContent: { branch, runId: args.runId },
+        structuredContent: { branch, runId: args.runId, candidateId: chosen.agentId },
       };
     } catch (err) {
       return {

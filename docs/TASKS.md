@@ -538,6 +538,20 @@ Status: planned, not implemented.
 
 Goal: improve MCP/worktree implementation quality by allowing frites to combine the strongest ideas from multiple successful child-agent implementations into one synthesized, oracle-verified final candidate, instead of always recommending a single child diff unchanged.
 
+### Review Refinements (folded in)
+
+A multi-lens adversarial review of the original plan against the real codebase surfaced two conceptual changes and seven mechanical fixes. These are now part of the plan:
+
+1. **Gate the preference; do not prefer synthesis merely because it passes.** The reconcile contract defines "best" as *smallest blast radius among oracle-passers* (`judge.ts`), and oracles are frequently weak/partial (`oracle.ts` returns `{}` with no `package.json`; `passed` can be a single lint exiting 0). Preferring a usually-larger synthesis on the sole evidence that it cleared the bar the children already cleared inverts that safety stance exactly when the oracle is least trustworthy. The synthesized candidate is preferred only when it (a) passes the same full oracle AND (b) its blast radius does not exceed `synthesisMaxBlastFactor ×` the combined size of the passing inputs; otherwise frites falls back to the best original passing child. Both diff sizes are surfaced, and a human can override the recommendation (see frites_apply override below).
+2. **Seed the synthesis worktree from the best passing candidate, and expose the other passing trees read-only.** Instead of building fresh-from-base and reconstructing the agreed-upon core from capped prose, create the synthesis worktree from the base SHA and *apply the best passing child's diff into it* (reusing `git apply --3way`), so the synthesizer starts from a known-good tree and only integrates deltas. The other passing children's worktrees are still alive on disk (cleanup is in the engine's `finally`), so reference them read-only; embedded diffs become a convenience, capped, not the sole source. Fall back to fresh-from-base if the seed fails to apply.
+3. **Cost safety is claude-only.** `--max-budget-usd` is enforced only by the claude runner; codex has no budget flag. Default the synthesizer to a claude child so `synthesisBudgetUsd` actually bites, and ship a concrete `synthesisHardTimeoutMs` wall-clock default (the per-child hard timeout is off by default).
+4. **Add a `"synthesis"` `ReconcileDecision` value** and a synthesis-specific rationale; otherwise a synthesized win is mislabeled `judge`/`tests` with a false "smallest blast radius" rationale. Note this is *not* compiler-enforced — `decision` is string-interpolated everywhere — so every render site must be updated by hand.
+5. **Single source of truth for the synthesis candidate.** Put it in `result.candidates` (tagged `synthesis: true`) and its `OracleResult` in `result.oracle` so `costNote`, `persistRun`, the comparison table, and the survivor count all flow through unchanged. Do NOT add a separate cost line (it would double-count). Keep `reconcile()` pure over the *original* candidates and apply the synthesis preference in a thin wrapper.
+6. **Cleanup/abort hygiene.** Register the synthesis worktree handle in the shared `handles` map on the line immediately after `create()` returns and before spawning the synthesizer (mirroring `runOneAgent`), or a throw leaks the worktree + branch. Guard the reserved id against collision with selected/handle ids. Add an explicit `if (deps.signal?.aborted) skip` guard before synthesis (the engine never checks `.aborted` between phases today).
+7. **CLI event rendering has no compiler net.** MCP `describeEvent` is a `switch` whose `: string` return forces handling of new events, but the CLI `describe()` is an if-chain that silently returns `""` for unknown events — synthesis events would vanish with no error. Add CLI branches explicitly and test that each synthesis event renders non-empty.
+8. **frites_apply candidate override.** Since the recommendation may now be a (larger) synthesis, add an optional `candidateId` to `frites_apply` (and a CLI `--apply-candidate` flag) so a reviewer can land a tighter passing child instead; `persistRun` already writes every `<agentId>.diff`.
+9. **Test the new behavior, not just the happy path.** Lock the preference *direction* (synthesis preferred even when a smaller child also passed), the reported `decision` value, the blast-radius fallback, render coverage for synthesis events, costNote-counts-once, that synthesis runs at the same `FRITES_DEPTH` as children, and abort-before-synthesis.
+
 ### Current Behavior
 
 The current worktree engine is intentionally conservative and winner-take-one.
@@ -612,9 +626,9 @@ High-level flow:
 2. Capture each child diff from its isolated worktree unchanged.
 3. Run the oracle against each usable candidate unchanged.
 4. If zero or one usable candidate passes, keep current behavior.
-5. If at least two candidates pass, create a new synthesis worktree from the original base SHA.
-6. Provide the synthesizer with the original task, acceptance criteria, child summaries, passing diffs, files touched, and oracle results.
-7. Instruct the synthesizer to implement the best integrated solution directly in the synthesis worktree.
+5. If at least two candidates pass, create a new synthesis worktree from the original base SHA and seed it with the best passing candidate's diff (`git apply --3way`); fall back to fresh-from-base if the seed fails to apply.
+6. Provide the synthesizer with the original task, acceptance criteria, child summaries, passing diffs (capped), files touched, oracle results, and the read-only paths of the other passing worktrees.
+7. Instruct the synthesizer to integrate the remaining candidates' deltas into the seeded solution directly in the synthesis worktree.
 8. Capture the synthesis worktree diff with the same `captureDiff()` path used for normal children.
 9. Run the same build/test/lint oracle against the synthesized candidate.
 10. Recommend the synthesized candidate only if it passes.
@@ -691,18 +705,19 @@ Add configuration only if needed for control and cost safety.
 Possible config keys:
 
 ```ts
-synthesisMode?: "off" | "passing-only" | "always";
-synthesisAgent?: AgentSpec;
-synthesisMinCandidates?: number;
-synthesisMaxDiffChars?: number;
-synthesisTimeoutMs?: number;
-synthesisHardTimeoutMs?: number;
-synthesisBudgetUsd?: number;
+synthesisMode?: "off" | "passing-only";   // default "passing-only" (on); "off" = winner-take-one
+synthesisAgent?: AgentSpec;                // defaults to the first claude child so budget is enforced
+synthesisMinCandidates?: number;           // default 2
+synthesisMaxDiffChars?: number;            // cap on embedded non-seed diffs
+synthesisMaxBlastFactor?: number;          // default 1.5 — synthesis Δlines must be <= factor × Σ(passing inputs)
+synthesisTimeoutMs?: number;               // idle timeout; falls back to perChildTimeoutMs
+synthesisHardTimeoutMs?: number;           // concrete wall-clock ceiling (NOT off-by-default)
+synthesisBudgetUsd?: number;               // claude-only enforcement; advisory for codex
 ```
 
 Recommended initial defaults:
 
-- `synthesisMode: "off"` for the first implementation, or `"passing-only"` if the UX clearly communicates extra cost.
+- `synthesisMode: "passing-only"` (on by default): the stage only touches the already-expensive worktree path, only fires with an oracle and >=2 passers, and fails safe, so it ships on. `"off"` restores winner-take-one for cost-sensitive users.
 - `synthesisMinCandidates: 2`.
 - Use the first configured Claude child as the default synthesizer when available, because synthesis benefits from strong code review and integration judgment.
 - Fall back to the first configured child if no Claude child exists.
@@ -761,8 +776,8 @@ Recommended policy:
 
 - If synthesis is disabled, keep current behavior exactly.
 - If fewer than two original candidates pass the oracle, keep current behavior.
-- If synthesis runs and passes the oracle, prefer the synthesized candidate by default.
-- If synthesis fails but at least one original candidate passed, recommend the best original passing candidate.
+- If synthesis runs, passes the same full oracle, AND its blast radius is within `synthesisMaxBlastFactor ×` the combined size of the passing inputs, prefer the synthesized candidate (decision `"synthesis"`).
+- If synthesis passes but is over-broad (exceeds the blast-radius ceiling), or fails/times out/errors, and at least one original candidate passed, recommend the best original passing candidate and record the fallback reason.
 - If no original candidate passed, synthesis can optionally run in a future mode over near-misses, but the result must pass the oracle before being treated as verified.
 - If synthesis over near-misses fails or has no oracle, report it as a near-miss, not as a verified recommendation.
 
