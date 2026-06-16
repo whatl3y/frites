@@ -77,6 +77,13 @@ type Emit = (human: string, fields?: Record<string, unknown>) => void;
  * milestone status lines (info log) and `emitDetail` for high-frequency telemetry/interleaved
  * text (debug log). Both also push to the progress channel when one is attached.
  */
+interface ActiveAgent {
+  who: string;
+  state: string;
+  startedAt: number;
+  updatedAt: number;
+}
+
 interface TurnContext {
   turnLog: Logger;
   progress: ProgressSink | null;
@@ -84,6 +91,17 @@ interface TurnContext {
   emit: Emit;
   emitDetail: Emit;
   detail: "telemetry" | "interleaved";
+  activeAgents: Map<string, ActiveAgent>;
+}
+function heartbeatLine(since: number, activeAgents?: Map<string, ActiveAgent>): string {
+  const elapsed = Math.round((Date.now() - since) / 1000);
+  const active = [...(activeAgents?.values() ?? [])];
+  if (!active.length) return `· still working — ${elapsed}s elapsed`;
+  const now = Date.now();
+  const waiting = active
+    .map((a) => `${a.who}: ${a.state}, ${Math.round((now - a.updatedAt) / 1000)}s ago`)
+    .join("; ");
+  return `· still working — ${elapsed}s elapsed · waiting on ${waiting}`;
 }
 function estimateTokens(s: string): number {
   return Math.max(1, Math.ceil(s.length / 4));
@@ -341,6 +359,21 @@ async function runAgentTurn(
     const isFinalAnswer = isAnswerTurn && !!io.answer && ctx.role === "synth";
     if (ctx.role !== "synth") emit(`→ ${who} working…`, { agent: who });
 
+    // Track this agent in the live roster the heartbeat reads, so a long silent stretch renders
+    // "waiting on agent 1 (claude…): running Bash, 40s ago" instead of a bare elapsed tick. Keyed
+    // by `who` (unique per child/synth within a turn); dropped when the call settles (finally).
+    // `touch()` with no arg refreshes the timestamp but keeps the last state (usage pings).
+    const touch = (state?: string): void => {
+      const prev = io.activeAgents.get(who);
+      io.activeAgents.set(who, {
+        who,
+        state: state ?? prev?.state ?? "working",
+        startedAt,
+        updatedAt: Date.now(),
+      });
+    };
+    touch("starting");
+
     let chars = 0;
     let lastOut = 0;
     let lastIn = 0;
@@ -364,18 +397,29 @@ async function runAgentTurn(
         if (typeof ev.outputTokens === "number") lastOut = ev.outputTokens;
         if (typeof ev.inputTokens === "number") lastIn = ev.inputTokens;
         if (typeof ev.cacheReadTokens === "number") lastCacheRead = ev.cacheReadTokens;
+        touch(); // refresh liveness; usage pings carry no new state of their own
+        return;
+      }
+      if (ev.type === "start") {
+        touch("working"); // child CLI initialized
         return;
       }
       if (ev.type === "tool") {
+        touch(`running ${ev.name}`); // stays until the next event — the "Ns ago" shows how long
         emitDetail(`→ ${who} used ${ev.name}`, { agent: who, tool: ev.name });
         return;
       }
-      if (ev.type !== "text") return; // reasoning deltas: kept out of the panel for now
+      if (ev.type === "reasoning") {
+        touch("thinking"); // tracked for liveness; reasoning text stays out of the panel for now
+        return;
+      }
+      if (ev.type !== "text") return;
       chars += ev.delta.length;
       if (isFinalAnswer) {
         io.answer?.push(ev.delta); // live answer stream (raw delta — no forced newline)
         return;
       }
+      touch("responding");
       // Non-final child: in interleaved mode surface its output (line-buffered + agent-prefixed);
       // in either mode refresh a throttled per-agent token/elapsed counter.
       if (io.detail === "interleaved" && io.progress) {
@@ -443,6 +487,8 @@ async function runAgentTurn(
       const ms = Date.now() - startedAt;
       emit(`✗ ${who} failed (${secs(ms)}): ${errMsg(e)}`, { agent: who, ms });
       throw e;
+    } finally {
+      io.activeAgents.delete(who); // drop from the live roster once settled (success or failure)
     }
   };
 
@@ -538,6 +584,7 @@ async function anthropicStream(
   progress: ProgressSink | null,
   answer: ProgressSink | null,
   turnLog: Logger,
+  activeAgents: Map<string, ActiveAgent>,
 ): Promise<void> {
   res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
   const id = newId("msg");
@@ -577,10 +624,7 @@ async function anthropicStream(
     writeThinking("frites — working…");
     progress.onMessage(writeThinking);
     const since = Date.now();
-    heartbeat = setInterval(
-      () => writeThinking(`· still working — ${Math.round((Date.now() - since) / 1000)}s elapsed`),
-      HEARTBEAT_MS,
-    );
+    heartbeat = setInterval(() => writeThinking(heartbeatLine(since, activeAgents)), HEARTBEAT_MS);
   }
 
   const closeThinking = (): void => {
@@ -714,6 +758,7 @@ async function responsesStream(
   progress: ProgressSink | null,
   answerSink: ProgressSink | null,
   turnLog: Logger,
+  activeAgents: Map<string, ActiveAgent>,
 ): Promise<void> {
   res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
   const respId = newId("resp");
@@ -757,10 +802,7 @@ async function responsesStream(
     writeReason("frites — working…");
     progress.onMessage(writeReason);
     const since = Date.now();
-    heartbeat = setInterval(
-      () => writeReason(`· still working — ${Math.round((Date.now() - since) / 1000)}s elapsed`),
-      HEARTBEAT_MS,
-    );
+    heartbeat = setInterval(() => writeReason(heartbeatLine(since, activeAgents)), HEARTBEAT_MS);
   }
 
   const closeReasoning = (): void => {
@@ -863,7 +905,7 @@ function makeTurnContext(streaming: boolean): TurnContext {
     turnLog.debug(human, fields);
     progress?.push(human);
   };
-  return { turnLog, progress, answer, emit, emitDetail, detail: PROGRESS_DETAIL };
+  return { turnLog, progress, answer, emit, emitDetail, detail: PROGRESS_DETAIL, activeAgents: new Map() };
 }
 
 async function handleMessages(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -889,7 +931,7 @@ async function handleMessages(req: IncomingMessage, res: ServerResponse): Promis
   const turn = servedTurn(key, model, turnLog, () =>
     runAgentTurn(prompt, decisionBasis, tools, model, io, continuation, cwd),
   );
-  if (body.stream) await anthropicStream(res, model, estimateTokens(prompt), turn, io.progress, answerSink, turnLog);
+  if (body.stream) await anthropicStream(res, model, estimateTokens(prompt), turn, io.progress, answerSink, turnLog, io.activeAgents);
   else anthropicJson(res, model, estimateTokens(prompt), await turn);
 }
 
@@ -913,7 +955,7 @@ async function handleResponses(req: IncomingMessage, res: ServerResponse): Promi
   const turn = servedTurn(key, model, turnLog, () =>
     runAgentTurn(prompt, decisionBasis, [], model, io, continuation, cwd),
   );
-  if (body.stream) await responsesStream(res, model, turn, io.progress, io.answer, turnLog);
+  if (body.stream) await responsesStream(res, model, turn, io.progress, io.answer, turnLog, io.activeAgents);
   else {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify(responseEnvelope(newId("resp"), model, "completed", actionText((await turn).action))));

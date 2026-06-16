@@ -49,6 +49,22 @@ export const codexRunner: CliRunnerDef = {
       acc.summary = text.trim().slice(0, 2000);
     }
     const usage: any = obj.usage ?? obj.msg?.usage;
-    if (usage && typeof usage.cost_usd === "number") acc.costUsd = usage.cost_usd;
+    if (usage) {
+      // codex `input_tokens` is already the inclusive total (cached is a SUBSET, not additive),
+      // so we pass it through; cache-creation doesn't apply (claude only).
+      if (typeof usage.input_tokens === "number") acc.inputTokens = usage.input_tokens;
+      if (typeof usage.cached_input_tokens === "number")
+        acc.cacheReadTokens = usage.cached_input_tokens;
+      // codex reports hidden reasoning as a field SEPARATE from output_tokens; fold it in so the
+      // engine path's token total is comparable with claude (whose output_tokens already include
+      // thinking) — otherwise the harder codex thinks, the more usage we silently discard.
+      const visibleOutput = typeof usage.output_tokens === "number" ? usage.output_tokens : 0;
+      const reasoningOutput =
+        typeof usage.reasoning_output_tokens === "number" ? usage.reasoning_output_tokens : 0;
+      const totalOutput = visibleOutput + reasoningOutput;
+      if (totalOutput > 0) acc.outputTokens = totalOutput;
+      // The ChatGPT backend usually omits cost_usd; when present (API-key path) it's authoritative.
+      if (typeof usage.cost_usd === "number") acc.costUsd = usage.cost_usd;
+    }
   },
 };

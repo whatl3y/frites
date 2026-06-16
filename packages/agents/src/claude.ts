@@ -48,6 +48,22 @@ export const claudeRunner: CliRunnerDef = {
     if (obj.type === "result") {
       if (typeof obj.total_cost_usd === "number") acc.costUsd = obj.total_cost_usd;
       if (typeof obj.result === "string") acc.summary = obj.result.slice(0, 2000);
+      const u = obj.usage;
+      if (u) {
+        // claude reports fresh/cache-read/cache-write input as DISJOINT categories that sum to the
+        // full prompt size; the true footprint is their sum, not `input_tokens` alone. output_tokens
+        // already includes thinking, so no reasoning fold is needed (unlike codex).
+        const fresh = typeof u.input_tokens === "number" ? u.input_tokens : 0;
+        const read = typeof u.cache_read_input_tokens === "number" ? u.cache_read_input_tokens : 0;
+        const create =
+          typeof u.cache_creation_input_tokens === "number" ? u.cache_creation_input_tokens : 0;
+        if (u.input_tokens != null || read || create) {
+          acc.inputTokens = fresh + read + create;
+          acc.cacheReadTokens = read;
+          acc.cacheCreationTokens = create;
+        }
+        if (typeof u.output_tokens === "number") acc.outputTokens = u.output_tokens;
+      }
       emit("finished");
     }
   },

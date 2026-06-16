@@ -1,6 +1,7 @@
-import type { FritesConfig } from "./config.js";
+import type { FritesConfig, ModelPricing } from "./config.js";
 import { type EngineEventHandler, noopEventHandler } from "./events.js";
 import { heuristicJudge } from "./judge.js";
+import { estimateCostUsd, pricingFor } from "./pricing.js";
 import type {
   AgentSpec,
   Candidate,
@@ -47,6 +48,11 @@ export interface AgentRunOutput {
   error?: string;
   logPath?: string;
   costUsd?: number;
+  /** Normalized, provider-comparable token usage (reasoning-inclusive output). See Candidate. */
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
 }
 
 export type RunAgentFn = (
@@ -125,7 +131,7 @@ export async function runEngine(
       oracle,
       decision,
       rationale,
-      costNote: costNote(candidates),
+      costNote: costNote(candidates, deps.config.pricing),
     };
   } finally {
     await Promise.allSettled(
@@ -155,6 +161,7 @@ async function runOneAgent(
   const base: Candidate = {
     agentId: spec.id,
     kind: spec.kind,
+    model: spec.model,
     worktreePath: handle.path,
     branch: handle.branch,
     diff: "",
@@ -186,6 +193,10 @@ async function runOneAgent(
       error: out.error,
       logPath: out.logPath,
       costUsd: out.costUsd,
+      inputTokens: out.inputTokens,
+      outputTokens: out.outputTokens,
+      cacheReadTokens: out.cacheReadTokens,
+      cacheCreationTokens: out.cacheCreationTokens,
     };
     onEvent({
       type: "agent-finished",
@@ -329,13 +340,30 @@ export function buildPrompt(task: Task, spec: AgentSpec, directive?: string): st
   return parts.join("");
 }
 
-function costNote(candidates: Candidate[]): string {
-  const costs = candidates
-    .map((c) => c.costUsd)
-    .filter((v): v is number => typeof v === "number");
-  if (costs.length === 0) {
-    return "Cost telemetry not available from these child backends.";
+function costNote(
+  candidates: Candidate[],
+  pricing?: Record<string, ModelPricing>,
+): string {
+  // Prefer the backend's self-reported cost (claude); fall back to a pricing-table estimate from
+  // captured tokens (codex against the ChatGPT backend reports no cost_usd, which used to make it
+  // look free next to claude). Estimation is opt-in — it only kicks in when rates are configured.
+  let total = 0;
+  let counted = 0;
+  let anyEstimated = false;
+  for (const c of candidates) {
+    let usd = c.costUsd;
+    if (usd == null) {
+      usd = estimateCostUsd(pricingFor(c.model, pricing), c);
+      if (usd != null) anyEstimated = true;
+    }
+    if (usd != null) {
+      total += usd;
+      counted++;
+    }
   }
-  const total = costs.reduce((a, b) => a + b, 0);
-  return `Approx total child spend: $${total.toFixed(3)} across ${costs.length} agent(s).`;
+  if (counted === 0) {
+    return "Cost telemetry not available from these child backends (configure `pricing` to estimate).";
+  }
+  const approx = anyEstimated ? "~" : "";
+  return `Approx total child spend: ${approx}$${total.toFixed(3)} across ${counted} agent(s).`;
 }

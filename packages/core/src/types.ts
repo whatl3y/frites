@@ -35,6 +35,8 @@ export type CandidateStatus = "succeeded" | "empty" | "errored" | "timed-out";
 export interface Candidate {
   agentId: string;
   kind: ChildKind;
+  /** Model this candidate ran (from its AgentSpec), needed to resolve pricing for cost estimates. */
+  model?: string;
   worktreePath: string;
   branch: string;
   diff: string;
@@ -45,6 +47,16 @@ export interface Candidate {
   error?: string;
   logPath?: string;
   costUsd?: number;
+  /**
+   * Normalized, provider-comparable token usage. `inputTokens` is the TOTAL input (all categories
+   * summed); `cacheReadTokens`/`cacheCreationTokens` are its cached/cache-write subsets. `outputTokens`
+   * is reasoning-inclusive on both providers. Lets the report show codex's footprint instead of zero
+   * even when its backend reports no cost.
+   */
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
 }
 
 export interface CommandResult {

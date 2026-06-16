@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/frites.jpg" alt="frites logo" width="96" />
+</p>
+
 # frites
 
 *frites AI — a coordinating ensemble proxy for Claude Code & Codex.*

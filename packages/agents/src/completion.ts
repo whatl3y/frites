@@ -218,14 +218,20 @@ export function parseCodexLine(line: string, acc: StreamAcc): ChildEvent[] {
     if (u) {
       // codex `input_tokens` is already the inclusive total (cached is a SUBSET, not additive),
       // unlike claude where the categories are disjoint — so we pass it through without summing.
+      // codex reports hidden reasoning separately; fold it into outputTokens so telemetry and
+      // cost estimates stay comparable with claude, whose output_tokens already include thinking.
       if (typeof u.input_tokens === "number") acc.inputTokens = u.input_tokens;
       if (typeof u.cached_input_tokens === "number") acc.cacheReadTokens = u.cached_input_tokens;
-      if (typeof u.output_tokens === "number") acc.outputTokens = u.output_tokens;
+      const visibleOutput = typeof u.output_tokens === "number" ? u.output_tokens : 0;
+      const reasoningOutput =
+        typeof u.reasoning_output_tokens === "number" ? u.reasoning_output_tokens : 0;
+      const totalOutput = visibleOutput + reasoningOutput;
+      if (totalOutput > 0) acc.outputTokens = totalOutput;
       if (typeof u.cost_usd === "number") acc.costUsd = u.cost_usd;
       out.push({
         type: "usage",
         inputTokens: u.input_tokens,
-        outputTokens: u.output_tokens,
+        outputTokens: totalOutput || undefined,
         cacheReadTokens:
           typeof u.cached_input_tokens === "number" ? u.cached_input_tokens : undefined,
       });

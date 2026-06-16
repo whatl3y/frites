@@ -16,6 +16,16 @@ import { startIdleTimeout } from "./timeout.js";
 export interface RunAccumulator {
   summary?: string;
   costUsd?: number;
+  /**
+   * Normalized, provider-comparable token usage (same shape as the answer-council path). Captured
+   * so frites_implement can report codex's footprint instead of zero — the ChatGPT backend reports
+   * no `cost_usd`, so tokens are the only signal of how hard codex actually worked. `outputTokens`
+   * is reasoning-inclusive on both providers (see codex.ts/claude.ts onLine).
+   */
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
 }
 
 /** Adapter describing how to invoke and read one CLI backend. */
@@ -145,6 +155,10 @@ function spawnAndStream(
         status,
         summary: acc.summary,
         costUsd: acc.costUsd,
+        inputTokens: acc.inputTokens,
+        outputTokens: acc.outputTokens,
+        cacheReadTokens: acc.cacheReadTokens,
+        cacheCreationTokens: acc.cacheCreationTokens,
         error:
           status === "errored"
             ? killedReason === "abort"
