@@ -8,7 +8,7 @@ packages:
   - "packages/*"
 ```
 
-- **`apps/*`** are the runnable surfaces — the gateway, the MCP server, and the CLI.
+- **`apps/*`** are the runnable surfaces: the gateway, the MCP server, and the CLI.
 - **`packages/*`** are the libraries those surfaces are built from.
 
 The apps are deliberately thin: nearly all logic lives in `packages/core`, so every surface shares one engine.

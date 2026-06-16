@@ -10,8 +10,8 @@ Add the following `env` block to `~/.claude/settings.json`:
 { "env": { "ANTHROPIC_BASE_URL": "http://127.0.0.1:6767", "ANTHROPIC_AUTH_TOKEN": "frites" } }
 ```
 
-- **`ANTHROPIC_BASE_URL`** — the gateway URL. Use `http://127.0.0.1:6767` for the default port. If you installed the service on a different port (`frites install --port 7000`), use that port instead.
-- **`ANTHROPIC_AUTH_TOKEN`** — set to `frites`. The gateway binds to `127.0.0.1` only and does not validate this token against an upstream account; child agents authenticate using the accounts you are already logged into (see [auth and billing](../product/auth-and-billing.md)).
+- **`ANTHROPIC_BASE_URL`**: the gateway URL. Use `http://127.0.0.1:6767` for the default port. If you installed the service on a different port (`frites install --port 7000`), use that port instead.
+- **`ANTHROPIC_AUTH_TOKEN`**: set to `frites`. The gateway binds to `127.0.0.1` only and does not validate this token against an upstream account; child agents authenticate using the accounts you are already logged into (see [auth and billing](../product/auth-and-billing.md)).
 
 ## Open a new session
 
@@ -19,6 +19,6 @@ Claude Code reads `~/.claude/settings.json` when a session starts, so **open a n
 
 ## Next steps
 
-- [First run](./first-run.md) — confirm the gateway is reachable and watch the council work.
-- [Configure Codex](./configure-codex.md) — if you also use Codex.
-- [Service management](./service-management.md) — managing the always-on gateway.
+- [First run](./first-run.md): confirm the gateway is reachable and watch the council work.
+- [Configure Codex](./configure-codex.md): if you also use Codex.
+- [Service management](./service-management.md): managing the always-on gateway.

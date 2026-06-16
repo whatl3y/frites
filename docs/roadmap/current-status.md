@@ -8,16 +8,16 @@ Working and tested against the unit suite (typecheck clean) plus a live smoke ag
 
 ### Gateway (transparent proxy)
 
-- **Both surfaces** — `/v1/messages` (Claude Code) and `/v1/responses` (Codex).
-- **SSE streaming** — live answer streaming on pure answer turns; live per-agent progress telemetry on tool-bearing turns.
-- **Traffic classification** — answer turns vs. action (coding) turns vs. background/utility traffic.
-- **Fan-out + synthesis** — answer/action-council fan-out per `fanOutPolicy`, with the synthesizer being `defaultAgents[0]` invoked with `role: "synth"`.
-- **LLM fan-out judge** — under `fanOutPolicy: auto`, a cheap classifier decides *whether* a turn is worth fanning out, with a heuristic short-circuit on trivially-simple prompts.
-- **`fanOutScope` first-turn scoping** — the council runs on the substantive request turn, then a single agent drives the mechanical tool loop via stateless continuation detection. The host's background haiku-tier traffic (titles, summaries, topic classification) never fans out.
-- **Council recap** — a closing per-turn one-line council recap (e.g. `◆ council recap — N agents + synth · 18.3s · $0.072`).
-- **Cost telemetry** — per-turn cost telemetry with config-driven `pricing` estimation for backends that do not self-report cost (e.g. codex on the ChatGPT backend).
+- **Both surfaces**: `/v1/messages` (Claude Code) and `/v1/responses` (Codex).
+- **SSE streaming**: live answer streaming on pure answer turns; live per-agent progress telemetry on tool-bearing turns.
+- **Traffic classification**: answer turns vs. action (coding) turns vs. background/utility traffic.
+- **Fan-out + synthesis**: answer/action-council fan-out per `fanOutPolicy`, with the synthesizer being `defaultAgents[0]` invoked with `role: "synth"`.
+- **LLM fan-out judge**: under `fanOutPolicy: auto`, a cheap classifier decides *whether* a turn is worth fanning out, with a heuristic short-circuit on trivially-simple prompts.
+- **`fanOutScope` first-turn scoping**: the council runs on the substantive request turn, then a single agent drives the mechanical tool loop via stateless continuation detection. The host's background haiku-tier traffic (titles, summaries, topic classification) never fans out.
+- **Council recap**: a closing per-turn one-line council recap (e.g. `◆ council recap — N agents + synth · 18.3s · $0.072`).
+- **Cost telemetry**: per-turn cost telemetry with config-driven `pricing` estimation for backends that do not self-report cost (e.g. codex on the ChatGPT backend).
 
-**Gateway code-editing works (verified end-to-end).** On a coding turn frites emits the `Read` / `Edit` / `Bash` `tool_use` the host executes on the real files — proven end-to-end (a real `claude` client through the gateway read a file, edited it, fixed a bug, and `npm test` passed), with **no API key**: subscription `claude -p` children decide the next action via `runActionCouncil` and the gateway constructs the `tool_use` envelope the host executes.
+**Gateway code-editing works (verified end-to-end).** On a coding turn frites emits the `Read` / `Edit` / `Bash` `tool_use` the host executes on the real files, proven end-to-end (a real `claude` client through the gateway read a file, edited it, fixed a bug, and `npm test` passed), with **no API key**: subscription `claude -p` children decide the next action via `runActionCouncil` and the gateway constructs the `tool_use` envelope the host executes.
 
 ### MCP worktree path
 

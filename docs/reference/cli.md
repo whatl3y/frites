@@ -31,7 +31,7 @@ without a leading `run`.
 front-ends over the service manager. On macOS the service is a launchd user agent
 (`com.frites.gateway`); on Linux it is a `systemd --user` unit
 (`frites-gateway.service`). Service install/uninstall/restart/status is only
-supported on macOS and Linux — on other platforms use `frites gateway` to run in
+supported on macOS and Linux. On other platforms use `frites gateway` to run in
 the foreground.
 
 | Command | Flags | Effect |
@@ -98,7 +98,7 @@ frites "<task>" [--repo path] [--n N] [--agents claude,codex] \
   [--accept "<criteria>"] [--base ref] [--apply | --apply-candidate <id>]
 ```
 
-The leading `run` keyword is optional — `frites run "<task>"` and
+The leading `run` keyword is optional: `frites run "<task>"` and
 `frites "<task>"` are equivalent. The task instructions are every non-flag
 argument, joined with spaces.
 
@@ -139,6 +139,6 @@ service logs` forwards to the same log tailer as `frites logs`.
 
 ## See also
 
-- [Configuration](configuration.md) — every config key and the layering rules.
-- [Logging](logging.md) — the gateway log and `frites logs` flags.
-- [MCP tools](mcp-tools.md) — the worktree `frites_implement` / `frites_apply` tools.
+- [Configuration](configuration.md): every config key and the layering rules.
+- [Logging](logging.md): the gateway log and `frites logs` flags.
+- [MCP tools](mcp-tools.md): the worktree `frites_implement` / `frites_apply` tools.

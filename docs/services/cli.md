@@ -29,18 +29,18 @@ Note that `pnpm frites -- config …` forwards the literal `--` separator as the
 
 `frites config` reads and writes JSON config files with the precedence **defaults < global < repo**. The write target is the repo config by default, or the global config with `--global`; `--repo <path>` selects which repo. Backed by `@frites/core` helpers:
 
-- **`path`** — print the global and repo config paths (noting which are present) and the effective precedence + write target.
-- **`init`** — write a starter config to the target (refuses to overwrite without `--force`).
-- **`show`** — load the effective config, print it as JSON, and report its sources on stderr.
-- **`get <key>`** / **`set <key> <value>`** / **`unset <key>`** — dotted-path access (e.g. `set defaultN 3`). Values are coerced via `parseConfigValue`. Every `set`/`unset` re-validates the resulting config and **refuses to write** if it would be invalid.
-- **`validate`** — validate the target config file (or report that defaults will be used when absent).
+- **`path`**: print the global and repo config paths (noting which are present) and the effective precedence + write target.
+- **`init`**: write a starter config to the target (refuses to overwrite without `--force`).
+- **`show`**: load the effective config, print it as JSON, and report its sources on stderr.
+- **`get <key>`** / **`set <key> <value>`** / **`unset <key>`**: dotted-path access (e.g. `set defaultN 3`). Values are coerced via `parseConfigValue`. Every `set`/`unset` re-validates the resulting config and **refuses to write** if it would be invalid.
+- **`validate`**: validate the target config file (or report that defaults will be used when absent).
 
 ## Service install and management
 
-The service layer (`apps/cli/src/service.ts`) installs the gateway as a per-user background service that auto-starts on login, restarts on crash, and costs nothing while idle. It supports **macOS launchd** and **Linux systemd --user** only; on any other OS it instructs the user to run `frites gateway` in the foreground.
+The service layer (`apps/cli/src/service.ts`) installs the gateway as a per-user background service that auto-starts on login, restarts on crash, and costs nothing while idle. It supports **macOS launchd** and **Linux systemd --user** only. On any other OS it instructs the user to run `frites gateway` in the foreground.
 
-- **macOS** — writes a launchd plist at `~/Library/LaunchAgents/com.frites.gateway.plist` (`RunAtLoad` + `KeepAlive`), then bootstraps/loads it via `launchctl`.
-- **Linux** — writes a systemd user unit at `~/.config/systemd/user/frites-gateway.service` (`Restart=always`), then `daemon-reload` + `enable --now` via `systemctl --user`.
+- **macOS**: writes a launchd plist at `~/Library/LaunchAgents/com.frites.gateway.plist` (`RunAtLoad` + `KeepAlive`), then bootstraps/loads it via `launchctl`.
+- **Linux**: writes a systemd user unit at `~/.config/systemd/user/frites-gateway.service` (`Restart=always`), then `daemon-reload` + `enable --now` via `systemctl --user`.
 
 Both resolve the gateway binary by importing `@frites/gateway` (falling back to known `dist`/`src` paths), run it with `process.execPath`, carry a curated environment (`PATH`, `HOME`, and any of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `FRITES_PASS_API_KEYS` that are set) plus `FRITES_GATEWAY_PORT`, and write logs to `~/.frites/gateway.log` (stdout) and `~/.frites/gateway.err` (stderr). The port defaults to `6767`.
 

@@ -6,9 +6,9 @@ that are actually read in the frites source.
 
 The variables fall into three groups:
 
-1. [Consumed by frites](#consumed-by-frites) — read by frites' own code.
-2. [Set by you, read by Codex](#set-by-you-read-by-codex-frites_key) — the Codex `env_key` label.
-3. [Evaluation-only](#evaluation-only) — used by the benchmark harness, documented elsewhere.
+1. [Consumed by frites](#consumed-by-frites): read by frites' own code.
+2. [Set by you, read by Codex](#set-by-you-read-by-codex-frites_key): the Codex `env_key` label.
+3. [Evaluation-only](#evaluation-only): used by the benchmark harness, documented elsewhere.
 
 ## Consumed by frites
 
@@ -42,10 +42,10 @@ See [logging](logging.md) for the full logging model.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `FRITES_PASS_API_KEYS` | _(config `passApiKeys`)_ | Set to `1` to forward `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` through to child agents (metered API mode). Subscription-first by default — keys are withheld so CLIs use OAuth. Read by the gateway, MCP, and CLI. |
+| `FRITES_PASS_API_KEYS` | _(config `passApiKeys`)_ | Set to `1` to forward `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` through to child agents (metered API mode). Subscription-first by default: keys are withheld so CLIs use OAuth. Read by the gateway, MCP, and CLI. |
 | `ANTHROPIC_API_KEY` | _(unset)_ | Forwarded to children **only** when `passApiKeys` is on. Otherwise withheld. |
 | `OPENAI_API_KEY` | _(unset)_ | Forwarded to children **only** when `passApiKeys` is on. Otherwise withheld. |
-| `CLAUDE_CODE_OAUTH_TOKEN` | _(unset)_ | Headless Claude subscription token (from `claude setup-token`). On the [child allowlist](#child-environment), so it reaches children — the way Claude auths where the macOS Keychain is unavailable (containers/CI). |
+| `CLAUDE_CODE_OAUTH_TOKEN` | _(unset)_ | Headless Claude subscription token (from `claude setup-token`). On the [child allowlist](#child-environment), so it reaches children. This is how Claude auths where the macOS Keychain is unavailable (containers/CI). |
 
 The child auth and billing model is the canonical topic of
 [auth and billing](../product/auth-and-billing.md).
@@ -58,12 +58,12 @@ The child auth and billing model is the canonical topic of
 
 ### Child environment
 
-These are managed by frites' env sandbox (`packages/agents/src/env-sandbox.ts`) — you do not normally
+These are managed by frites' env sandbox (`packages/agents/src/env-sandbox.ts`). You do not normally
 set them yourself, but they are part of the contract.
 
 | Variable | Role |
 |---|---|
-| `FRITES_DEPTH` | Recursion fuse. The parent reads it (default `0`); each child is launched with `depth + 1`. When it would reach `maxDepth`, frites refuses to spawn — preventing a child from invoking frites again. |
+| `FRITES_DEPTH` | Recursion fuse. The parent reads it (default `0`); each child is launched with `depth + 1`. When it would reach `maxDepth`, frites refuses to spawn, preventing a child from invoking frites again. |
 | `FRITES_CHILD` | Set to `1` in every spawned child environment, marking it as a frites-launched child. |
 
 Child environments are built by **allowlist**, never by copying `process.env`. The allowlist that is
@@ -86,7 +86,7 @@ base-URL variables out of every child environment, even if reintroduced via `ext
 `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` are still meaningful **on the host side**: they are
 what you set in `~/.claude/settings.json` to point Claude Code at the gateway
 (`ANTHROPIC_BASE_URL=http://127.0.0.1:6767`, `ANTHROPIC_AUTH_TOKEN=frites`). frites only scrubs them
-from the **child** environment it spawns — see [configure Claude Code](../getting-started/configure-claude-code.md).
+from the **child** environment it spawns. See [configure Claude Code](../getting-started/configure-claude-code.md).
 
 ## Set by you, read by Codex (`FRITES_KEY`)
 
@@ -111,6 +111,6 @@ Whatever you export as `FRITES_KEY` is the token Codex sends; if you have set
 
 The benchmark harness under `eval/` uses its own `FRITES_BENCH_*` and `AIDER_*` variables (e.g.
 `FRITES_BENCH_HARNESS`, `FRITES_BENCH_URL`, `FRITES_BENCH_GATEWAY_HOST`, `AIDER_REPO`,
-`AIDER_EDIT_FORMAT`). These are not part of the runtime product and are not duplicated here — see the
+`AIDER_EDIT_FORMAT`). These are not part of the runtime product and are not duplicated here. See the
 evaluation runbook at [../../eval/README.md](../../eval/README.md) and
 [evaluation](../development/evaluation.md).

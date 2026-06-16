@@ -5,7 +5,7 @@ This page covers working in the frites repository itself: prerequisites, the roo
 ## Prerequisites
 
 - **Node.js >= 22** (`engines.node` in the root `package.json`).
-- **pnpm 10.24.0** — the repo pins `packageManager: "pnpm@10.24.0"`, so use Corepack or install that version.
+- **pnpm 10.24.0**: the repo pins `packageManager: "pnpm@10.24.0"`, so use Corepack or install that version.
 
 Install dependencies from the repo root:
 
@@ -25,7 +25,7 @@ All scripts are defined in the root `package.json` and run from the repo root.
 | `clean` | `pnpm clean` | Removes every `dist/` and `*.tsbuildinfo` under `apps/*` and `packages/*`. |
 | `prepack` | runs `pnpm build` | Lifecycle hook so a publish always ships fresh `dist/`. |
 | `typecheck` | `pnpm typecheck` | `tsc --noEmit` across the whole workspace (no emit; see [testing.md](testing.md)). |
-| `test` | `pnpm test` | `vitest run` — the unit suite. See [testing.md](testing.md). |
+| `test` | `pnpm test` | `vitest run`: the unit suite. See [testing.md](testing.md). |
 | `test:watch` | `pnpm test:watch` | `vitest` in watch mode. |
 | `gateway` | `pnpm gateway` | Runs the gateway from source via `tsx apps/gateway/src/index.ts`. |
 | `mcp` | `pnpm mcp` | Runs the MCP server from source via `tsx apps/mcp/src/index.ts`. |
@@ -33,7 +33,7 @@ All scripts are defined in the root `package.json` and run from the repo root.
 | `eval` | `pnpm eval` | Runs the value-gate harness (`tsx eval/value-gate.ts`). See [evaluation.md](evaluation.md). |
 | `bench` | `pnpm bench` | Runs the bench-matrix harness (`tsx eval/bench-matrix.ts`). See [evaluation.md](evaluation.md). |
 
-The `gateway`, `mcp`, `frites`, `eval`, and `bench` scripts all run TypeScript directly with [`tsx`](https://github.com/privatenumber/tsx) — no build step is required to run a surface locally.
+The `gateway`, `mcp`, `frites`, `eval`, and `bench` scripts all run TypeScript directly with [`tsx`](https://github.com/privatenumber/tsx). No build step is required to run a surface locally.
 
 ## Build order
 
@@ -60,8 +60,8 @@ Each package's own `build` script is `tsc -p tsconfig.build.json`, which emits `
 | `<pkg>/tsconfig.build.json` | Per-package build config extending the root; flips `noEmit` off, emits declarations + source maps into `dist/`, and excludes `test/`. |
 | `vitest.config.ts` | Test runner config: Node environment, include globs for `packages/*/test` + `apps/*/test`, and the same `@frites/*` source aliases. |
 
-The `@frites/*` path aliases in both `tsconfig.json` and `vitest.config.ts` point at each package's `src/index.ts`, so typecheck and tests resolve workspace packages from source — you do not need to build before running `pnpm typecheck` or `pnpm test`.
+The `@frites/*` path aliases in both `tsconfig.json` and `vitest.config.ts` point at each package's `src/index.ts`, so typecheck and tests resolve workspace packages from source, and you do not need to build before running `pnpm typecheck` or `pnpm test`.
 
 ## Runtime configuration
 
-frites itself reads `.frites/config.json` in the repo, layered over `~/.frites/config.json` (global). That is application configuration, not build tooling — manage it with `frites config` and see [reference/configuration.md](../reference/configuration.md).
+frites itself reads `.frites/config.json` in the repo, layered over `~/.frites/config.json` (global). That is application configuration, not build tooling. Manage it with `frites config` and see [reference/configuration.md](../reference/configuration.md).

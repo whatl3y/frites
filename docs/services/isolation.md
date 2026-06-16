@@ -1,6 +1,6 @@
 # Isolation
 
-`@frites/isolation` (`packages/isolation`) is frites's git-worktree layer. It gives every child agent its own isolated working tree branched from a single pinned base SHA, captures each agent's change as a unified diff, seeds the synthesis stage from a known-good tree, and lands an approved result on a fresh branch behind the one mandatory human gate. Its only dependency is [`@frites/core`](core.md), whose `WorktreeManagerLike` interface it implements — so the engine drives isolation without importing git directly.
+`@frites/isolation` (`packages/isolation`) is frites's git-worktree layer. It gives every child agent its own isolated working tree branched from a single pinned base SHA, captures each agent's change as a unified diff, seeds the synthesis stage from a known-good tree, and lands an approved result on a fresh branch behind the one mandatory human gate. Its only dependency is [`@frites/core`](core.md), whose `WorktreeManagerLike` interface it implements, so the engine drives isolation without importing git directly.
 
 For how isolation underpins the safety model and the overall worktree flow, see [Isolation](../architecture/isolation.md).
 
@@ -29,7 +29,7 @@ Runs `git worktree add --quiet -b <branch> <path> <baseSha>` and returns the `Wo
 
 ### `captureDiff(worktreePath)`
 
-Stages everything with `git add -A` (so new files are included), then reads back both the unified diff (`git diff --staged --no-color`) and the file list (`git diff --staged --name-only`), returning `{ diff, filesTouched }`. Both reads apply `DIFF_EXCLUDES` pathspecs — `:(exclude)node_modules`, `:(exclude)dist`, `:(exclude).frites` — so generated artifacts never pollute a candidate's diff. `filesTouched` is the trimmed, non-empty list of changed paths.
+Stages everything with `git add -A` (so new files are included), then reads back both the unified diff (`git diff --staged --no-color`) and the file list (`git diff --staged --name-only`), returning `{ diff, filesTouched }`. Both reads apply `DIFF_EXCLUDES` pathspecs (`:(exclude)node_modules`, `:(exclude)dist`, `:(exclude).frites`), so generated artifacts never pollute a candidate's diff. `filesTouched` is the trimmed, non-empty list of changed paths.
 
 ### `cleanup(repoPath, handle)`
 
@@ -41,11 +41,11 @@ The optional method on `WorktreeManagerLike`. It applies a captured candidate di
 
 ## Apply-to-branch: the one human gate
 
-`applyToBranch(repoPath, runId, diff)` lands an approved diff — and is the single mandatory human gate. It is deliberately conservative:
+`applyToBranch(repoPath, runId, diff)` lands an approved diff, and is the single mandatory human gate. It is deliberately conservative:
 
 1. Asserts the repo is a git repo.
-2. Requires a **clean working tree** (`git status --porcelain` must be empty), throwing and asking the user to commit or stash first — because applying switches branches.
+2. Requires a **clean working tree** (`git status --porcelain` must be empty), throwing and asking the user to commit or stash first, because applying switches branches.
 3. Creates and checks out a **fresh** branch `frites/apply/<runId>` via `git switch -c`.
 4. Applies the diff with `git apply --3way --index`. On failure it throws, noting that the branch is created and checked out so the user can resolve manually.
 
-It **never** touches the user's current branch history and **never** pushes — landing a result is always an explicit, reviewable action on an isolated branch. See [Safety model](../product/safety-model.md) for how this fits the broader blast-radius posture.
+It **never** touches the user's current branch history and **never** pushes. Landing a result is always an explicit, reviewable action on an isolated branch. See [Safety model](../product/safety-model.md) for how this fits the broader blast-radius posture.

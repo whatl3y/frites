@@ -65,7 +65,7 @@ claude mcp add --scope user frites -- pnpm --dir ~/nodejs/frites mcp
 ### Codex
 
 Register once for Codex in `~/.codex/config.toml`. The 60-second default tool
-timeout **must** be raised — `tool_timeout_sec = 600` is required because
+timeout **must** be raised: `tool_timeout_sec = 600` is required because
 `frites_implement` runs for minutes:
 
 ```toml
@@ -95,10 +95,10 @@ tool_timeout_sec = 600
 In a session: *"use frites to implement X"* → review the diff → *"use
 frites_apply with runId …"* (optionally `candidateId=<agent>` to land a specific
 candidate). The same flow is available from the terminal via `frites "implement
-X" --repo … --apply` / `--apply-candidate <id>` — see the [CLI](cli.md).
+X" --repo … --apply` / `--apply-candidate <id>`. See the [CLI](cli.md).
 
 ## See also
 
-- [MCP worktree mode](../product/mcp-worktree-mode.md) — the product overview of this mode.
-- [CLI](cli.md) — the standalone `frites run` equivalent.
-- [Configuration](configuration.md) — synthesis and oracle keys that shape a run.
+- [MCP worktree mode](../product/mcp-worktree-mode.md). The product overview of this mode.
+- [CLI](cli.md). The standalone `frites run` equivalent.
+- [Configuration](configuration.md). Synthesis and oracle keys that shape a run.

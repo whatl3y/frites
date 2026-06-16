@@ -1,4 +1,4 @@
-# frites — Architecture & Plan
+# frites: Architecture & Plan
 
 > **This document has moved.** The architecture and design content now lives in the
 > structured docs under [docs/](README.md). This page is kept as a compatibility

@@ -15,7 +15,7 @@ progress notifications as the agents work, then captures each candidate's diff f
 
 ## Tests as the oracle
 
-Reconciliation is not a mechanical N-way merge — that produces duplicate declarations and
+Reconciliation is not a mechanical N-way merge. That produces duplicate declarations and
 contradictions that still compile. Instead, frites filters the candidate diffs through your
 repo's **test suite as the ground-truth oracle** (configured or auto-detected build, lint,
 and test commands), then reconciles:
@@ -47,7 +47,7 @@ policy across both surfaces, see
 
 ## Diff review and apply
 
-frites returns candidate diffs plus a per-candidate comparison for you to review — it never
+frites returns candidate diffs plus a per-candidate comparison for you to review. It never
 auto-merges or pushes. When you are satisfied, `frites_apply` lands the chosen diff on a
 fresh `frites/<runId>` branch. This explicit human gate is the one mandatory approval step.
 You can always land a specific child instead of the recommendation by passing
@@ -58,9 +58,9 @@ For the full tool inputs and outputs, see the [MCP tools reference](../reference
 ## When this beats gateway mode
 
 Worktree mode is the far end of the "better output, slower" curve: N full implementations run
-to completion, then an extra synthesizer pass plus oracle run before you get a diff —
+to completion, then an extra synthesizer pass plus oracle run before you get a diff,
 minutes, not seconds. The payoff is that, unlike the gateway's answer synthesis, the worktree
-result is **verified** — it actually passed your tests — not just adjudicated. Reach for it
+result is **verified** (it actually passed your tests), not just adjudicated. Reach for it
 when correctness matters more than latency; use the gateway, `synthesisMode: "off"`, or fewer
 agents when you want speed. See [risks and tradeoffs](../architecture/risks-and-tradeoffs.md)
 for the canonical tradeoff discussion.

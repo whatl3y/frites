@@ -7,6 +7,7 @@
 
 - Deferred task index → [Deferred tasks](roadmap/deferred-tasks.md)
 - Gemini provider plan → [Gemini provider](roadmap/gemini-provider.md)
+- OpenAI-compatible providers plan (xAI Grok & open-source models) → [OpenAI-compatible providers](roadmap/openai-compatible-providers.md)
 - Shipped synthesis design → [Synthesis & reconciliation](concepts/synthesis-and-reconciliation.md),
   [Core engine](architecture/core-engine.md), [Configuration](reference/configuration.md)
 - Current status → [Current status](roadmap/current-status.md)

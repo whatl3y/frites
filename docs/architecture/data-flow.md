@@ -9,7 +9,7 @@ The two flows differ at the front but share the same core shape: **request → c
 The gateway sees one inbound request per host turn (`POST /v1/messages` for Claude Code, `POST /v1/responses` for Codex). Its flow:
 
 1. **Classify the traffic.** Background/utility calls (host haiku traffic for title generation, summarization, classification) are pinned to a single child and never fan out.
-2. **Detect continuation.** A turn is a tool-loop continuation when the request carries a tool result back — an Anthropic `tool_result` in the last user message, or a Responses `function_call_output`. This is stateless: it is read from the request *shape* alone, so it is correct across restarts and concurrent sessions with no server-side session memory.
+2. **Detect continuation.** A turn is a tool-loop continuation when the request carries a tool result back: an Anthropic `tool_result` in the last user message, or a Responses `function_call_output`. This is stateless: it is read from the request *shape* alone, so it is correct across restarts and concurrent sessions with no server-side session memory.
 3. **Decide whether to fan out.** `fanOutScope` (default `first-turn`) bounds *which* turns even get the question: fan out on the substantive request turn, then drive the mechanical tool-loop continuations with a single agent. `fanOutPolicy` (`always | auto | necessary | never`) decides *whether* an allowed turn is worth fanning out; under `auto` a heuristic short-circuits trivial prompts and an LLM fan-out judge makes the final call. See [Fan-out scope](../concepts/fan-out-scope.md).
 4. **Run the council.**
    - **Answer turns** call `runAnswerCouncil`: N children answer independently and concurrently (collected with `Promise.all`; a failed child becomes a textual failure block so the synthesizer still gets a complete input set), then the synthesizer adjudicates one final answer.
@@ -33,7 +33,7 @@ The worktree path is candidate selection over complete implementation attempts, 
    - Multiple passing candidates → tie-break with `heuristicJudge` (smallest changed-line count, then fewest files).
 7. **Optional synthesis.** When `synthesisMode` is `"passing-only"` (default) and at least `synthesisMinCandidates` candidates pass, a synthesizer agent integrates the passing deltas in a fresh worktree seeded with the best passing candidate's diff, then the result is re-run through the **same** oracle and preferred only if it passes and stays within `synthesisMaxBlastFactor ×` the combined input size. See [Synthesis & reconciliation](../concepts/synthesis-and-reconciliation.md).
 8. **Present.** Return `structuredContent` plus a `resource_link` to each diff; the caller persists diffs and run metadata. The user reviews the recommended diff and per-candidate comparison.
-9. **Apply.** `frites_apply {runId}` lands the diff on a fresh branch (`git switch -c frites/<runId> && git apply --3way`) — the one mandatory human gate. It accepts a `candidateId` to land a tighter passing child instead.
+9. **Apply.** `frites_apply {runId}` lands the diff on a fresh branch (`git switch -c frites/<runId> && git apply --3way`), the one mandatory human gate. It accepts a `candidateId` to land a tighter passing child instead.
 
 ## How the two flows relate
 
@@ -50,8 +50,8 @@ The gateway keeps everyday interaction friction low; the worktree path provides 
 
 ## Related pages
 
-- [Gateway](gateway.md) — the proxy surface.
-- [MCP worktree mode](mcp-worktree-mode.md) — the worktree surface.
-- [Core engine](core-engine.md) — the shared engine state machine and event model.
-- [Fan-out scope](../concepts/fan-out-scope.md) — which turns fan out.
-- [Synthesis & reconciliation](../concepts/synthesis-and-reconciliation.md) — how outputs are reconciled.
+- [Gateway](gateway.md): the proxy surface.
+- [MCP worktree mode](mcp-worktree-mode.md): the worktree surface.
+- [Core engine](core-engine.md): the shared engine state machine and event model.
+- [Fan-out scope](../concepts/fan-out-scope.md): which turns fan out.
+- [Synthesis & reconciliation](../concepts/synthesis-and-reconciliation.md): how outputs are reconciled.

@@ -4,7 +4,7 @@
 
 The package is deliberately **I/O-free**: it has no CLI, MCP, git, or process-spawning code of its own. Everything it touches the outside world with is expressed as a structural interface that `@frites/agents` and `@frites/isolation` satisfy at runtime. The only runtime dependency is [`zod`](https://www.npmjs.com/package/zod) for config validation. This keeps the engine fully unit-testable with fakes.
 
-For the deeper internals — the engine event model, the stage-by-stage flow, and failure modes — see [Core engine](../architecture/core-engine.md).
+For the deeper internals (the engine event model, the stage-by-stage flow, and failure modes), see [Core engine](../architecture/core-engine.md).
 
 ## Exports
 
@@ -32,9 +32,9 @@ For the deeper internals — the engine event model, the stage-by-stage flow, an
 
 The engine never imports git or a CLI directly. Instead `EngineDeps` is satisfied by injected implementations:
 
-- `worktrees: WorktreeManagerLike` — `resolveBase`, `create`, `captureDiff`, `cleanup`, and an optional `applyDiffToWorktree` (satisfied by [`@frites/isolation`](isolation.md)).
-- `runAgent: RunAgentFn` — runs one `AgentSpec` in a worktree and returns status, summary, cost, and normalized token usage (satisfied by [`@frites/agents`](agents.md)).
-- `runOracle: RunOracleFn` — runs build/lint/test against a worktree.
+- `worktrees: WorktreeManagerLike`: `resolveBase`, `create`, `captureDiff`, `cleanup`, and an optional `applyDiffToWorktree` (satisfied by [`@frites/isolation`](isolation.md)).
+- `runAgent: RunAgentFn`: runs one `AgentSpec` in a worktree and returns status, summary, cost, and normalized token usage (satisfied by [`@frites/agents`](agents.md)).
+- `runOracle: RunOracleFn`: runs build/lint/test against a worktree.
 - `oracleCommands: OracleCommands`, `config: FritesConfig`, `newRunId: () => string`, and an optional external-cancellation `signal`.
 
 ### Flow
@@ -67,7 +67,7 @@ The oracle is frites's objective filter. `detectOracle` returns explicit `build`
 
 ## The judge (`judge.ts`)
 
-`heuristicJudge` is the v1 tie-breaker among oracle-passing survivors: it prefers the **smallest diff** (smallest blast radius) by `diffSize` — counted added/removed lines, excluding headers — then the fewest files touched. An LLM pairwise judge is a later phase.
+`heuristicJudge` is the v1 tie-breaker among oracle-passing survivors: it prefers the **smallest diff** (smallest blast radius) by `diffSize` (counted added/removed lines, excluding headers), then the fewest files touched. An LLM pairwise judge is a later phase.
 
 ## Config (`config.ts`)
 
@@ -75,19 +75,19 @@ The oracle is frites's objective filter. `detectOracle` returns explicit `build`
 
 ## The answer council (`answer-council.ts`)
 
-The answer council is the transparent-proxy brain for **answer/reasoning** turns (Stance-A text synthesis) — no worktrees or tools; heavy file-editing lives in the engine/MCP path.
+The answer council is the transparent-proxy brain for **answer/reasoning** turns (Stance-A text synthesis): no worktrees or tools; heavy file-editing lives in the engine/MCP path.
 
 - `decideFanOut` is the heuristic gate, honoring `config.fanOutPolicy` (`never`/`always`/`necessary`/`auto`). The `auto` and `necessary` paths inspect prompt length and a `HARD_SIGNAL` keyword regex (why, compare, design, debug, prove, optimize, …).
 - `llmJudgeFanOut` upgrades that to a one-word LLM verdict, parsed **strictly** and **fail-closed** by `parseFanOutVerdict` (only a reply beginning with `fan-out` fans out; anything else resolves to a single agent). It falls back to the heuristic on any error.
 - `stripInjectedContext` removes known harness wrapper tags (`system-reminder`, `ide_selection`) before classification so the judge sees the real ask.
-- `runAnswerCouncil` runs N children with diverse framings (drawn from `defaultAgents`), each carrying the child directive and a Markdown-formatting directive, then asks one synthesizer to merge them into a single vetted answer — keeping agreements, adjudicating disagreements, and dropping unsupported claims, without revealing that multiple responses existed.
+- `runAnswerCouncil` runs N children with diverse framings (drawn from `defaultAgents`), each carrying the child directive and a Markdown-formatting directive, then asks one synthesizer to merge them into a single vetted answer, keeping agreements, adjudicating disagreements, and dropping unsupported claims, without revealing that multiple responses existed.
 
 ## Synthesis (`synthesis.ts`)
 
-The synthesis stage integrates the strongest ideas from oracle-passing candidates into one implementation, verified by the **same** oracle — never a mechanical diff merge.
+The synthesis stage integrates the strongest ideas from oracle-passing candidates into one implementation, verified by the **same** oracle, never a mechanical diff merge.
 
 - `evaluateSynthesisEligibility` requires synthesis enabled, an executable oracle, and at least `synthesisMinCandidates` usable, oracle-passing candidates.
-- `selectSynthesizer` picks `config.synthesisAgent`, else the first `claude-cli` child (so `synthesisBudgetUsd` actually bites via `--max-budget-usd`), else the first agent — mapping the `synthesis*` budget/timeout overrides onto the returned spec.
+- `selectSynthesizer` picks `config.synthesisAgent`, else the first `claude-cli` child (so `synthesisBudgetUsd` actually bites via `--max-budget-usd`), else the first agent, mapping the `synthesis*` budget/timeout overrides onto the returned spec.
 - `reservedSynthesisId` allocates a collision-free `synthesis-N` id.
 - `buildSynthesisPrompt` constructs the strict integration prompt, embedding non-seed candidate diffs smallest-first up to `synthesisMaxDiffChars` and falling back to a file list + read-only worktree path past the cap.
 - `applySynthesisPreference` prefers the synthesized candidate only when it is usable, passed the oracle, and its blast radius is within `synthesisMaxBlastFactor ×` the combined input size; otherwise it falls back to the best original passing candidate and records the reason.
@@ -98,10 +98,10 @@ The full design rationale, reconciliation policy, and non-goals live in [Synthes
 
 The type layer is the contract every other package speaks:
 
-- `AgentSpec` — id, `kind` (`claude-cli` | `codex-cli`), optional model, framing, budget, idle/hard timeout overrides, and codex `reasoningEffort`.
-- `Task` — instructions, `repoPath`, optional `baseRef`, acceptance criteria, `n`, or an explicit `agents` list.
-- `Candidate` — a child's worktree, diff, `filesTouched`, status (`succeeded`/`empty`/`errored`/`timed-out`), summary, cost, normalized token usage, and synthesis provenance.
-- `OracleResult` / `CommandResult` — per-command output and the overall pass.
-- `RunResult` — `runId`, `recommended`, all candidates/oracle results, the `decision` + `rationale`, a `costNote`, and (when enabled) `synthesis: SynthesisInfo`.
+- `AgentSpec`: id, `kind` (`claude-cli` | `codex-cli`), optional model, framing, budget, idle/hard timeout overrides, and codex `reasoningEffort`.
+- `Task`: instructions, `repoPath`, optional `baseRef`, acceptance criteria, `n`, or an explicit `agents` list.
+- `Candidate`: a child's worktree, diff, `filesTouched`, status (`succeeded`/`empty`/`errored`/`timed-out`), summary, cost, normalized token usage, and synthesis provenance.
+- `OracleResult` / `CommandResult`: per-command output and the overall pass.
+- `RunResult`: `runId`, `recommended`, all candidates/oracle results, the `decision` + `rationale`, a `costNote`, and (when enabled) `synthesis: SynthesisInfo`.
 
 These types carry no I/O coupling, which is what lets the engine stay pure.

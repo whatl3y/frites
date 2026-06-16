@@ -1,6 +1,6 @@
 # Configuration
 
-frites is configured by a JSON file managed with `frites config` — no
+frites is configured by a JSON file managed with `frites config`; no
 hand-editing required. This page is the canonical reference for every key and its
 default. The schema lives in `packages/core/src/config.ts`.
 
@@ -26,7 +26,7 @@ file paths and write target with `frites config path`. See the
 | `fanOutPolicy` | `"always" \| "auto" \| "necessary" \| "never"` | `"auto"` | How aggressively the gateway fans out to a council: `always` on every main turn; `auto` decides per-prompt; `necessary` only for clearly hard/contested prompts; `never` runs a single agent. See [Fan-out policy](../concepts/fan-out-policy.md). |
 | `fanOutScope` | `"first-turn" \| "per-turn"` | `"first-turn"` | Which turns within one request may fan out. `first-turn` fans out only on the substantive request turn, then runs a single agent through the mechanical tool-loop continuation turns; `per-turn` fans out on every allowed turn. See [Fan-out scope](../concepts/fan-out-scope.md). |
 | `defaultN` | integer `1`–`5` | `2` | Default number of children when a task doesn't specify. Capped at 5 in v1. |
-| `defaultAgents` | array of `AgentSpec` | claude-1 + codex-1 (see below) | Which agents and models to consult. Order is load-bearing — see [the slot-0 note](#slot-0-is-the-synthesizer-and-child-0). |
+| `defaultAgents` | array of `AgentSpec` | claude-1 + codex-1 (see below) | Which agents and models to consult. Order is load-bearing; see [the slot-0 note](#slot-0-is-the-synthesizer-and-child-0). |
 
 The default `defaultAgents`:
 
@@ -75,7 +75,7 @@ the design rationale and reconciliation policy.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `pricing` | record of `model id` → `{ inputPerMtok, outputPerMtok, cachedInputPerMtok?, cacheWritePerMtok? }` | unset | Optional per-model token rates (in $ per million tokens) used to estimate a child's spend when its backend reports none — so codex on the ChatGPT backend shows a comparable cost instead of looking free. Lookup is exact-match first, then a prefix match. Omit to disable estimation. See [Pricing](pricing.md) and [Cost telemetry](../concepts/cost-telemetry.md). |
+| `pricing` | record of `model id` → `{ inputPerMtok, outputPerMtok, cachedInputPerMtok?, cacheWritePerMtok? }` | unset | Optional per-model token rates (in $ per million tokens) used to estimate a child's spend when its backend reports none, so codex on the ChatGPT backend shows a comparable cost instead of looking free. Lookup is exact-match first, then a prefix match. Omit to disable estimation. See [Pricing](pricing.md) and [Cost telemetry](../concepts/cost-telemetry.md). |
 
 `ModelPricing` fields: `inputPerMtok` (uncached input), `outputPerMtok` (output,
 reasoning-inclusive), `cachedInputPerMtok` (cache reads; defaults to
@@ -106,8 +106,8 @@ These keys are part of the schema but are documented in detail elsewhere:
 ## Slot-0 is the synthesizer and child-0
 
 `defaultAgents` order is load-bearing. `defaultAgents[0]` doubles as the
-synthesizer that merges the council — there is no separate synthesizer setting in
-the default path — and children round-robin the whole list, so slot 0 is also
+synthesizer that merges the council (there is no separate synthesizer setting in
+the default path) and children round-robin the whole list, so slot 0 is also
 child index 0. Reorder the list to change which agent synthesizes, keeping in
 mind that the same slot is then also the first child. (Setting an explicit
 `synthesisAgent` overrides which agent synthesizes without changing the child
@@ -115,7 +115,7 @@ order.)
 
 ## See also
 
-- [CLI](cli.md) — the `frites config` subcommands.
+- [CLI](cli.md): the `frites config` subcommands.
 - [Fan-out policy](../concepts/fan-out-policy.md) and [Fan-out scope](../concepts/fan-out-scope.md).
 - [Synthesis and reconciliation](../concepts/synthesis-and-reconciliation.md).
 - [Cost telemetry](../concepts/cost-telemetry.md) and [Pricing](pricing.md).

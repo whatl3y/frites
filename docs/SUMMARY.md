@@ -71,3 +71,4 @@
 * [Current status](roadmap/current-status.md)
 * [Deferred tasks](roadmap/deferred-tasks.md)
 * [Gemini provider](roadmap/gemini-provider.md)
+* [OpenAI-compatible providers](roadmap/openai-compatible-providers.md)

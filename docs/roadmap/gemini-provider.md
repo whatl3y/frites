@@ -1,6 +1,6 @@
 # Gemini provider
 
-> **Status: planned, not implemented.** This page records the design for adding Gemini support. None of it ships today — frites children are still only `claude-cli` and `codex-cli`.
+> **Status: planned, not implemented.** This page records the design for adding Gemini support. None of it ships today; frites children are still only `claude-cli` and `codex-cli`.
 
 Goal: add Gemini support alongside the existing Claude and Codex children without destabilizing the gateway or MCP worktree paths. See the [Deferred tasks](deferred-tasks.md) index for where this fits.
 
@@ -9,7 +9,7 @@ Goal: add Gemini support alongside the existing Claude and Codex children withou
 Ship Gemini in two stages:
 
 1. Add `gemini-api` first as an internal council child for gateway answer/action synthesis.
-2. Consider `gemini-cli` later for answer-only or worktree execution — but only **after** a real CLI behavior spike proves it can run unattended safely.
+2. Consider `gemini-cli` later for answer-only or worktree execution, but only **after** a real CLI behavior spike proves it can run unattended safely.
 
 API-first is the safer initial path because Google documents the Node SDK (`@google/genai`) and its streaming / function-calling APIs. Gemini CLI currently needs local validation before it is safe as an unattended child runner: its stdin behavior, `stream-json` schema, approval prompts, sandboxing, write behavior, and timeout behavior are not enough to rely on from docs alone.
 
@@ -27,7 +27,7 @@ Likely files to change:
 - `packages/agents/src/index.ts`
 - `apps/cli/src/index.ts`
 - `apps/mcp/src/runtime.ts`
-- `apps/gateway/src/index.ts` — only if gateway dispatch assumptions are hard-coded
+- `apps/gateway/src/index.ts`: only if gateway dispatch assumptions are hard-coded
 - `README.md`
 - `docs/ARCHITECTURE.md`
 

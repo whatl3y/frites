@@ -1,10 +1,10 @@
 # Auth & billing
 
-frites runs on the subscriptions you are **already logged into** — there are **no API keys** to
+frites runs on the subscriptions you are **already logged into**: there are **no API keys** to
 configure for everyday use. Children authenticate the same way you do interactively: Claude through
 its keychain OAuth (`claude` login), Codex through your ChatGPT sign-in (`codex` login). What
 changes once frites is in the loop is *where the spend lands*, because billing is decided by the
-invocation **surface**, server-side — not by client identity.
+invocation **surface**, server-side, not by client identity.
 
 ## Subscription-first, no API keys
 
@@ -12,7 +12,7 @@ When the council runs, each child is spawned headless against your local credent
 children use the keychain OAuth token; Codex children use your ChatGPT account. frites withholds
 API keys from children by default (`passApiKeys: false`), so the CLIs fall back to OAuth rather than
 per-token API billing. This is the boundary that keeps frites on your subscription instead of a
-metered key — see the [safety model](./safety-model.md) for how the child environment is built and
+metered key. See the [safety model](./safety-model.md) for how the child environment is built and
 why keys are withheld.
 
 ## Programmatic use is metered
@@ -20,10 +20,10 @@ why keys are withheld.
 The catch is that *interactive* subscription limits and *programmatic* (headless) limits are not the
 same bucket. When frites drives the same accounts non-interactively:
 
-- **Claude** draws the **metered Agent-SDK credit** — $20 Pro / $100 Max5x / $200 Max20x per month,
+- **Claude** draws the **metered Agent-SDK credit**: $20 Pro / $100 Max5x / $200 Max20x per month,
   at full API rates, no rollover, hard stop. This is **not** the unlimited interactive limit; it is
   a separate, metered allowance tied to the Agent-SDK / `claude -p` surface.
-- **Codex** draws your **ChatGPT plan's Codex usage** — `codex exec` rides the ChatGPT plan's Codex
+- **Codex** draws your **ChatGPT plan's Codex usage**: `codex exec` rides the ChatGPT plan's Codex
   limits.
 
 The asymmetry between providers (which auth paths work, which are sanctioned, and which are banned)
@@ -37,7 +37,7 @@ This is the most counter-intuitive part, and it is by design. Billing is **surfa
 vendor decides which bucket your call hits from the endpoint it arrives on, not from who is calling.
 
 - Replaying a raw Anthropic subscription token directly against `api.anthropic.com` is **dead and
-  banned** — Anthropic added server-side validation on Jan 9 2026 and returns `401 "only for use
+  banned**. Anthropic added server-side validation on Jan 9 2026 and returns `401 "only for use
   with Claude Code"`. Spoofing Claude Code to borrow its unlimited interactive limit is broken,
   ToS-violating, and pointless.
 - The sanctioned headless path (`claude -p` / Agent SDK) therefore lands on the **metered**
@@ -60,7 +60,7 @@ Two levers opt in:
 Either one lets the allowlisted child environment carry `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`
 through to the children, so the CLIs bill per-token instead of drawing the subscription. frites owns
 the fallback router because the vendors do not auto-fall-back from a depleted subscription to a key.
-The `passApiKeys` posture is part of the [safety model](./safety-model.md) — leaving it off is the
+The `passApiKeys` posture is part of the [safety model](./safety-model.md). Leaving it off is the
 recommended default, and is also what keeps you subscription-first.
 
 ## Cost visibility differs by backend
@@ -70,7 +70,7 @@ How much you can *see* of what was spent depends on which backend ran the child:
 | Backend | Reports cost? | What you see |
 |---|---|---|
 | `claude -p` (Claude) | Yes, authoritatively | Actual spend per child and per turn |
-| `codex` on the ChatGPT backend | No | Nothing — reads as unknown (and once looked "free") |
+| `codex` on the ChatGPT backend | No | Nothing: reads as unknown (and once looked "free") |
 
 Because Codex on the ChatGPT backend self-reports no cost, frites can only **estimate** its spend.
 Provide a per-model `pricing` rate table and frites fills in an estimate, shown with a leading `~`
@@ -87,12 +87,12 @@ Because the surface decides the bucket, frites exposes two billing modes:
    interactive subscription limits and only calls frites's MCP worktree tool for deliberate heavy
    edits. Maximum free subscription usage, but it requires you at the session and to invoke the tool
    explicitly. This mode lives on the [MCP worktree path](./mcp-worktree-mode.md).
-2. **Transparent / metered (the default — friction-first).** Your Claude Code / Codex points at the
+2. **Transparent / metered (the default, friction-first).** Your Claude Code / Codex points at the
    [gateway](./gateway-mode.md), so frites is the brain for *every* prompt. Children use your local
    subscriptions but programmatically, so spend is **metered** (Agent-SDK credit / ChatGPT plan),
    with optional API-key overflow.
 
-frites defaults to mode 2 for UX — friction-over-cost — and keeps spend in check with
+frites defaults to mode 2 for UX (friction-over-cost) and keeps spend in check with
 [fan-out policy](../concepts/fan-out-policy.md), [fan-out scope](../concepts/fan-out-scope.md), and
 per-turn [cost telemetry](../concepts/cost-telemetry.md). Mode 1 stays available for cost-sensitive
 heavy edits.

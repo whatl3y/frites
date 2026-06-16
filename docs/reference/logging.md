@@ -3,7 +3,7 @@
 frites keeps two distinct views of what the council is doing: a **live,
 per-turn** progress channel in your editor, and a **durable** gateway log on
 disk. The live channel shows what's happening right now and most editors collapse
-it once a turn ends — it's the "is it working?" view, not a record. The gateway
+it once a turn ends. It's the "is it working?" view, not a record. The gateway
 log is the durable detail view: scroll back to any past turn long after the editor
 has moved on. This page covers the durable log and the `frites logs` tailer.
 
@@ -13,7 +13,7 @@ The gateway writes one structured, leveled, turn-scoped record per line to
 stdout, which the background service captures to `~/.frites/gateway.log`
 (launchd `StandardOutPath` / systemd `StandardOutput`). Crashes and unformatted
 stderr land in `~/.frites/gateway.err`. Every turn writes detailed,
-timestamped, turn-correlated logs — request, the continuation/fan-out decision,
+timestamped, turn-correlated logs: request, the continuation/fan-out decision,
 each child's start/finish/cost, synthesis, and total spend.
 
 Each text record is formatted as:
@@ -49,8 +49,8 @@ frites logs -f --level debug        # include prompt/decision previews
 frites logs -n 200 --level warn     # only warnings + errors
 ```
 
-Without follow, `frites logs` prints the last `N` lines of `gateway.log`, then —
-if present — a `── gateway stderr (crashes) ──` section with the last 20 lines of
+Without follow, `frites logs` prints the last `N` lines of `gateway.log`, then,
+if present, a `── gateway stderr (crashes) ──` section with the last 20 lines of
 `gateway.err`. With `--follow` it also streams new lines from both files as they
 arrive. If neither log file exists yet, it prints a hint to start the gateway or
 install the service first.
@@ -87,11 +87,11 @@ ingestion by other tooling.
 The live channel is governed by the `streamProgress` and `progressDetail` config
 keys (see [Configuration](configuration.md)). Note that not every turn shows the
 whole council: with `fanOutScope: first-turn` only the substantive request turn
-fans out, and the host's background/utility calls always run a single agent — so
+fans out, and the host's background/utility calls always run a single agent, so
 single-agent continuation lines on follow-up turns are expected.
 
 ## See also
 
-- [Environment variables](environment-variables.md) — `FRITES_LOG_LEVEL`, `FRITES_LOG_JSON`, and related vars.
-- [Configuration](configuration.md) — the `logLevel`, `streamProgress`, and `progressDetail` keys.
-- [CLI](cli.md) — the `frites logs` command and service management.
+- [Environment variables](environment-variables.md): `FRITES_LOG_LEVEL`, `FRITES_LOG_JSON`, and related vars.
+- [Configuration](configuration.md): the `logLevel`, `streamProgress`, and `progressDetail` keys.
+- [CLI](cli.md): the `frites logs` command and service management.

@@ -20,16 +20,16 @@ Then export the key Codex will send:
 export FRITES_KEY=frites
 ```
 
-- **`base_url`** — the gateway's `/v1` base. Use `http://127.0.0.1:6767/v1` for the default port; if you installed on a different port (`frites install --port 7000`), use that port.
-- **`wire_api = "responses"`** — Codex talks to the gateway over the `/v1/responses` surface.
-- **`env_key = "FRITES_KEY"`** — names the environment variable Codex reads to obtain the auth token it sends.
+- **`base_url`**: the gateway's `/v1` base. Use `http://127.0.0.1:6767/v1` for the default port; if you installed on a different port (`frites install --port 7000`), use that port.
+- **`wire_api = "responses"`**: Codex talks to the gateway over the `/v1/responses` surface.
+- **`env_key = "FRITES_KEY"`**: names the environment variable Codex reads to obtain the auth token it sends.
 
 ## FRITES_KEY is read by Codex, not by frites
 
-`FRITES_KEY` is consumed by **Codex** because you named it in `env_key`; frites itself does not read it. It is simply the token Codex presents to the gateway. The gateway binds to `127.0.0.1` only and does not validate it against an upstream account — child agents authenticate with the accounts you are already logged into (see [auth and billing](../product/auth-and-billing.md)). For the full list of variables that frites itself reads, see [environment variables](../reference/environment-variables.md).
+`FRITES_KEY` is consumed by **Codex** because you named it in `env_key`; frites itself does not read it. It is simply the token Codex presents to the gateway. The gateway binds to `127.0.0.1` only and does not validate it against an upstream account. Child agents authenticate with the accounts you are already logged into (see [auth and billing](../product/auth-and-billing.md)). For the full list of variables that frites itself reads, see [environment variables](../reference/environment-variables.md).
 
 ## Next steps
 
-- [First run](./first-run.md) — confirm the gateway is reachable and watch the council work.
-- [Configure Claude Code](./configure-claude-code.md) — if you also use Claude Code.
-- [Service management](./service-management.md) — managing the always-on gateway.
+- [First run](./first-run.md): confirm the gateway is reachable and watch the council work.
+- [Configure Claude Code](./configure-claude-code.md): if you also use Claude Code.
+- [Service management](./service-management.md): managing the always-on gateway.

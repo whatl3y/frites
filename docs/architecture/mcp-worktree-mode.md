@@ -1,6 +1,6 @@
 # MCP worktree mode
 
-MCP worktree mode (`apps/mcp`, `@frites/mcp`) is frites's **Stance B** surface: an on-demand MCP tool that runs N competing full implementations as real agents in isolated git worktrees, filters them through the repo's test suite as the ground-truth oracle, and recommends one vetted diff. It exposes two tools over stdio — `frites_implement` and `frites_apply`.
+MCP worktree mode (`apps/mcp`, `@frites/mcp`) is frites's **Stance B** surface: an on-demand MCP tool that runs N competing full implementations as real agents in isolated git worktrees, filters them through the repo's test suite as the ground-truth oracle, and recommends one vetted diff. It exposes two tools over stdio: `frites_implement` and `frites_apply`.
 
 Impersonation is the wrong fit here: returning N candidate diffs plus a comparison and running minutes-long worktree agents needs a tool call, not a single model turn. So the heavy multi-agent file-edit work lives on the MCP surface rather than the gateway.
 
@@ -8,10 +8,10 @@ Impersonation is the wrong fit here: returning N candidate diffs plus a comparis
 
 The tools run over stdio. Several MCP host behaviors are load-bearing and were verified against the real hosts:
 
-- **Progress notifications are display-only — they do NOT extend either host's deadline.** Size timeouts to worst-case wall-clock up front.
+- **Progress notifications are display-only. They do NOT extend either host's deadline.** Size timeouts to worst-case wall-clock up front.
 - **Claude Code:** set the per-tool `timeout` to `600000` and `alwaysLoad: true` so the tool isn't hidden behind Tool Search. It renders `notifications/progress` inline.
 - **Codex:** `tool_timeout_sec` defaults to **60s and MUST be raised to 600** or every run dies.
-- **Result size:** Claude warns at ~10k tokens and hard-caps at ~25k. Return compact `structuredContent` plus a `resource_link` to each diff — never inline N full diffs.
+- **Result size:** Claude warns at ~10k tokens and hard-caps at ~25k. Return compact `structuredContent` plus a `resource_link` to each diff, never inline N full diffs.
 - **No MCP `sampling` for the judge:** Claude Code doesn't implement a sampling client and Codex explicitly refused to. frites calls models with its own credentials instead.
 
 ## Worktree execution
@@ -37,7 +37,7 @@ An optional, on-by-default synthesis stage can integrate the passing candidates'
 
 ## Apply flow
 
-The MCP path lands changes only via an explicit, gated apply — it never auto-merges or pushes:
+The MCP path lands changes only via an explicit, gated apply. It never auto-merges or pushes:
 
 1. `frites_implement` returns `structuredContent` plus `resource_link`s to each candidate diff. The caller persists diffs and run metadata for review.
 2. The user reviews the recommended diff and the per-candidate comparison.
@@ -47,8 +47,8 @@ This explicit apply is the one mandatory human gate. The permission posture for 
 
 ## Related pages
 
-- [Isolation](isolation.md) — worktree lifecycle, diff capture, apply-to-branch.
-- [Worktree oracle](../concepts/worktree-oracle.md) — the test/build/lint oracle.
-- [MCP tools](../reference/mcp-tools.md) — the `frites_implement` / `frites_apply` tool reference.
-- [Core engine](core-engine.md) — the shared engine state machine.
-- [Data flow](data-flow.md) — the end-to-end worktree sequence.
+- [Isolation](isolation.md): worktree lifecycle, diff capture, apply-to-branch.
+- [Worktree oracle](../concepts/worktree-oracle.md): the test/build/lint oracle.
+- [MCP tools](../reference/mcp-tools.md): the `frites_implement` / `frites_apply` tool reference.
+- [Core engine](core-engine.md): the shared engine state machine.
+- [Data flow](data-flow.md): the end-to-end worktree sequence.

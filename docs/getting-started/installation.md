@@ -1,12 +1,12 @@
 # Installation
 
-frites is a coordinating ensemble proxy for Claude Code and Codex. You point your existing agent at frites, and every prompt is answered by a council of agents instead of one — using the subscriptions you are already logged into (no API keys).
+frites is a coordinating ensemble proxy for Claude Code and Codex. You point your existing agent at frites, and every prompt is answered by a council of agents instead of one, using the subscriptions you are already logged into (no API keys).
 
 The fastest path is the always-on transparent-proxy gateway. Install it once, point your editor at it, and every prompt flows through the council from then on.
 
 ## Prerequisites
 
-- **`claude` and/or `codex` installed and logged in.** frites drives the agents you already have. Children use the accounts you are already authenticated against — Claude keychain OAuth, Codex ChatGPT sign-in. No API keys are required. (For how auth and billing work, see [auth and billing](../product/auth-and-billing.md).)
+- **`claude` and/or `codex` installed and logged in.** frites drives the agents you already have. Children use the accounts you are already authenticated against: Claude keychain OAuth, Codex ChatGPT sign-in. No API keys are required. (For how auth and billing work, see [auth and billing](../product/auth-and-billing.md).)
 - **Node.js >= 22.**
 - **macOS**, or a major Linux distribution with **systemd user services**.
 
@@ -36,13 +36,13 @@ The gateway is a transparent proxy: it impersonates the model endpoint your edit
 
 ## Idle costs nothing
 
-The service is always running, but it only spends when you send prompts. While idle it sits on `127.0.0.1` waiting — idle = $0. Cost scales with how often you fan out (see [cost telemetry](../concepts/cost-telemetry.md)).
+The service is always running, but it only spends when you send prompts. While idle it sits on `127.0.0.1` waiting, so idle = $0. Cost scales with how often you fan out (see [cost telemetry](../concepts/cost-telemetry.md)).
 
 ## Next steps
 
 Point your editor at the gateway, then open a new session:
 
-- [Configure Claude Code](./configure-claude-code.md) — set `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`.
-- [Configure Codex](./configure-codex.md) — add the `frites` model provider to `~/.codex/config.toml`.
-- [First run](./first-run.md) — confirm reachability and watch the council work on your first request.
-- [Service management](./service-management.md) — install, status, restart, stop, and uninstall.
+- [Configure Claude Code](./configure-claude-code.md): set `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`.
+- [Configure Codex](./configure-codex.md): add the `frites` model provider to `~/.codex/config.toml`.
+- [First run](./first-run.md): confirm reachability and watch the council work on your first request.
+- [Service management](./service-management.md): install, status, restart, stop, and uninstall.

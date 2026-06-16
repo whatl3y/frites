@@ -1,6 +1,6 @@
 # Overview
 
-frites is a coordinator that dispatches a task to **multiple full coding agents**, has each do real work, then **diffs / tests / judges** their results into one vetted answer — driven from your normal Claude Code or Codex session. The value is *reconciliation quality*: many independent attempts filtered by execution, not vibes. The moat is the selector, not the fan-out.
+frites is a coordinator that dispatches a task to **multiple full coding agents**, has each do real work, then **diffs / tests / judges** their results into one vetted answer, driven from your normal Claude Code or Codex session. The value is *reconciliation quality*: many independent attempts filtered by execution, not vibes. The moat is the selector, not the fan-out.
 
 This page is the entry point for the architecture cluster. It covers the repo-level shape, the high-level decisions that drove it, and the layer diagram. Each subsystem has its own page linked below.
 
@@ -33,10 +33,10 @@ frites ships two transports over one shared engine, for different needs:
 
 | Surface | Stance | Best for |
 |---|---|---|
-| **Gateway** (transparent proxy) | Stance A — answer/action synthesizer | The frictionless everyday brain: Q&A, reasoning, and coding edits on *every* prompt, metered |
-| **MCP** (worktree mode) | Stance B — agentic broker | Deliberate heavy multi-agent file edits in worktrees, filtered by tests |
+| **Gateway** (transparent proxy) | Stance A: answer/action synthesizer | The frictionless everyday brain: Q&A, reasoning, and coding edits on *every* prompt, metered |
+| **MCP** (worktree mode) | Stance B: agentic broker | Deliberate heavy multi-agent file edits in worktrees, filtered by tests |
 
-The gateway is the **primary, everyday surface and is Stance A**: children are stateless completions, the host keeps its tool loop, and frites fans out per turn and synthesizes the assistant turn — on a coding turn it emits the `tool_use` the host executes (the children *decide* the action; they don't edit files). The MCP path is Stance B: children are full agents that do real file edits in isolated worktrees, and frites reconciles their work with the test suite as the ground-truth oracle.
+The gateway is the **primary, everyday surface and is Stance A**: children are stateless completions, the host keeps its tool loop, and frites fans out per turn and synthesizes the assistant turn. On a coding turn it emits the `tool_use` the host executes (the children *decide* the action; they don't edit files). The MCP path is Stance B: children are full agents that do real file edits in isolated worktrees, and frites reconciles their work with the test suite as the ground-truth oracle.
 
 The standalone CLI (`frites run` / `frites config`) calls the same engine for testing, CI, and power use.
 
@@ -68,12 +68,12 @@ The engine internals, event model, and failure modes are documented in [Core eng
 
 ## The rest of the architecture cluster
 
-- [Gateway](gateway.md) — transparent proxy design, `/v1/messages` + `/v1/responses`, SSE, action synthesis, tool-call emission.
-- [MCP worktree mode](mcp-worktree-mode.md) — MCP transport quirks, worktree execution, candidate diffs, oracle filtering, apply flow.
-- [Core engine](core-engine.md) — engine internals, synthesis engine shape, event model, failure modes.
-- [Agents & runners](agents-and-runners.md) — headless claude/codex runners and completions.
-- [Isolation](isolation.md) — git worktree lifecycle, diff capture, apply-to-branch.
-- [Data flow](data-flow.md) — end-to-end request flow for both surfaces.
-- [Risks & tradeoffs](risks-and-tradeoffs.md) — the "better output, slower" tradeoff and the top risks.
+- [Gateway](gateway.md): transparent proxy design, `/v1/messages` + `/v1/responses`, SSE, action synthesis, tool-call emission.
+- [MCP worktree mode](mcp-worktree-mode.md): MCP transport quirks, worktree execution, candidate diffs, oracle filtering, apply flow.
+- [Core engine](core-engine.md): engine internals, synthesis engine shape, event model, failure modes.
+- [Agents & runners](agents-and-runners.md): headless claude/codex runners and completions.
+- [Isolation](isolation.md): git worktree lifecycle, diff capture, apply-to-branch.
+- [Data flow](data-flow.md): end-to-end request flow for both surfaces.
+- [Risks & tradeoffs](risks-and-tradeoffs.md): the "better output, slower" tradeoff and the top risks.
 
 For the safety and permission posture, see the canonical [Safety model](../product/safety-model.md). For child auth and billing, see [Auth & billing](../product/auth-and-billing.md).
