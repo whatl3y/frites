@@ -14,6 +14,7 @@ import {
   loadConfig,
   runActionCouncil,
   runAnswerCouncil,
+  stripInjectedContext,
 } from "@frites/core";
 import { type ChildEvent, estimateCostUsd, pricingFor, runCompletion } from "@frites/agents";
 import { type Logger, createLogger, resolveLogLevel } from "./logger.js";
@@ -915,7 +916,12 @@ async function handleMessages(req: IncomingMessage, res: ServerResponse): Promis
   const tools = extractAnthropicTools(body);
   const sysText = typeof body.system === "string" ? body.system : blocksToText(body.system);
   const key = sessionKey(sysText + "\n" + (body.messages?.[0] ? blocksToText(body.messages[0].content) : ""));
-  const decisionBasis = lastUserText(body.messages ?? []) || prompt;
+  // Classify the user's ACTUAL ask, not the harness scaffolding (system-reminders, IDE context)
+  // spliced into the user turn — that scaffolding is what made the fan-out judge reply in prose
+  // ("I don't see a user request to evaluate…") instead of a verdict. Fall back to the raw text if
+  // stripping leaves nothing (a turn that was all scaffolding has no cleaner request to offer).
+  const rawBasis = lastUserText(body.messages ?? []) || prompt;
+  const decisionBasis = stripInjectedContext(rawBasis) || rawBasis;
   const cwd = extractWorkingDir(body);
   const continuation = isAnthropicContinuation(body.messages ?? []);
   const io = makeTurnContext(!!body.stream);
@@ -940,7 +946,9 @@ async function handleResponses(req: IncomingMessage, res: ServerResponse): Promi
   const model = typeof body.model === "string" ? body.model : "frites";
   const prompt = extractResponsesPrompt(body);
   const key = sessionKey((typeof body.instructions === "string" ? body.instructions : "") + "\n" + prompt.slice(0, 200));
-  const decisionBasis = responsesLastUser(body) || prompt;
+  // See handleMessages: classify the real ask, not injected scaffolding; fall back to raw if empty.
+  const rawBasis = responsesLastUser(body) || prompt;
+  const decisionBasis = stripInjectedContext(rawBasis) || rawBasis;
   const cwd = extractWorkingDir(body);
   const continuation = isResponsesContinuation(body.input);
   const io = makeTurnContext(!!body.stream);

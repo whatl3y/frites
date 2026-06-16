@@ -10,6 +10,39 @@ const HARD_SIGNAL =
   /\b(why|how come|compare|trade-?offs?|design|architect|debug|analy[sz]e|prove|optimi[sz]e|root cause|pros and cons|best way|explain|evaluate|recommend)\b/i;
 
 /**
+ * Harness-injected wrapper tags whose contents are NOT the user's request. Claude Code splices
+ * these into the user turn (background context, IDE state); a fan-out judge asked to classify
+ * "the request" gets confused by them and replies in prose instead of a verdict — which then
+ * trips a loose parser. Stripping them first lets the judge (and the length/newline heuristic)
+ * see the real ask. Conservative by design: only KNOWN harness tags are removed (never generic
+ * XML), so a user who pastes markup in their actual question keeps it intact. Extend this list if
+ * the harness starts splicing new wrapper tags.
+ */
+const INJECTED_TAGS = ["system-reminder", "ide_selection"];
+
+/**
+ * Remove harness-injected scaffolding from text destined for the fan-out classifier. Returns the
+ * cleaned text; callers should fall back to the ORIGINAL when this comes back empty — a turn that
+ * was all scaffolding has no real request to classify, so feeding the judge "" helps nobody (the
+ * strict verdict parser then fails closed on whatever the confused judge says).
+ */
+export function stripInjectedContext(text: string): string {
+  if (!text) return text;
+  let out = text;
+  for (const tag of INJECTED_TAGS) {
+    // Remove well-formed blocks. Non-greedy body + literal close tag → linear scan, no catastrophic
+    // backtracking; non-greedy also stops two SEPARATE blocks being merged across the text between.
+    out = out.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?</${tag}\\s*>`, "gi"), " ");
+    // Mop up ORPHAN delimiters left by nested same-type tags or an unclosed tag. These names are
+    // reserved harness tags, so a lone <tag>/</tag> is residue, not user prose — drop just the
+    // delimiter (keep surrounding words) so no tag syntax leaks into the classifier.
+    out = out.replace(new RegExp(`</?${tag}\\b[^>]*>`, "gi"), " ");
+  }
+  // Tidy the whitespace the removals leave behind (trailing spaces, blank-line runs).
+  return out.replace(/[^\S\n]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
  * Decide whether a prompt is worth N-way fan-out, honoring config.fanOutPolicy.
  * v1 is heuristic; swap in an LLM judge later for true "coordinator judgement".
  */
@@ -59,6 +92,30 @@ export interface AnswerCouncilDeps {
 }
 
 /**
+ * Map a judge's reply to a decision. The judge is asked for exactly ONE word — "fan-out" or
+ * "single" — so we parse STRICTLY (anchored at the start of the reply) and fail CLOSED: only a
+ * reply that clearly begins with a "fan-out" token fans out; "single" and ANY non-compliant reply
+ * resolve to a single agent.
+ *
+ * This replaces a loose `/fan-?out|multiple|yes/i.test(verdict)` that scanned the WHOLE reply: the
+ * judge prompt itself contains the word "MULTIPLE", and a model that answers in a sentence instead
+ * of one word ("…I can consult multiple agents…") would trip it and wrongly take the expensive
+ * fan-out path. The `reason` now reports the PARSED verdict (and, when unclear, a quoted preview),
+ * so the progress line reflects the decision that was actually made rather than arbitrary prose.
+ */
+export function parseFanOutVerdict(verdict: string, config: FritesConfig): FanOutDecision {
+  const head = verdict.trim().replace(/^["'`*\s]+/, "").toLowerCase();
+  const saysFanOut = /^fan[-\s]?out\b/.test(head);
+  const saysSingle = /^single\b/.test(head);
+  const kind = saysFanOut ? "fan-out" : saysSingle ? "single" : "unclear→single";
+  const reason =
+    saysFanOut || saysSingle
+      ? `llm-judge: ${kind}`
+      : `llm-judge: ${kind} (${JSON.stringify(verdict.trim().slice(0, 40))})`;
+  return { fanOut: saysFanOut, n: saysFanOut ? config.defaultN : 1, reason };
+}
+
+/**
  * Ask a cheap model to judge whether a prompt warrants multi-agent fan-out — the
  * "coordinator uses its best judgement" mode. Falls back to the heuristic on any error.
  */
@@ -78,12 +135,7 @@ export async function llmJudgeFanOut(
         "Request:\n" +
         prompt,
     );
-    const fan = /fan-?out|multiple|yes/i.test(verdict);
-    return {
-      fanOut: fan,
-      n: fan ? config.defaultN : 1,
-      reason: `llm-judge: ${verdict.trim().slice(0, 40)}`,
-    };
+    return parseFanOutVerdict(verdict, config);
   } catch {
     return decideFanOut(prompt, config);
   }
