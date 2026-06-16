@@ -1,15 +1,29 @@
 {
   "name": "@frites/cli",
   "version": "0.0.0",
-  "private": true,
+  "description": "CLI for the frites multi-agent gateway and coding council",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "bin": {
-    "frites": "./src/index.ts"
+    "frites": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@frites/agents": "workspace:*",
     "@frites/core": "workspace:*",
+    "@frites/gateway": "workspace:*",
     "@frites/isolation": "workspace:*"
   }
 }

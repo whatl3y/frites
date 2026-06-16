@@ -1,13 +1,14 @@
-export * from "./env-sandbox";
-export * from "./runner";
-export * from "./completion";
-export * from "./pricing";
-export { claudeRunner } from "./claude";
-export { codexRunner } from "./codex";
+export * from "./env-sandbox.js";
+export * from "./runner.js";
+export * from "./completion.js";
+export * from "./pricing.js";
+export * from "./timeout.js";
+export { claudeRunner } from "./claude.js";
+export { codexRunner } from "./codex.js";
 
-import type { CliRunnerDef } from "./runner";
-import { claudeRunner } from "./claude";
-import { codexRunner } from "./codex";
+import type { CliRunnerDef } from "./runner.js";
+import { claudeRunner } from "./claude.js";
+import { codexRunner } from "./codex.js";
 
 /** All CLI runners frites ships with today. */
 export const defaultRunners: CliRunnerDef[] = [claudeRunner, codexRunner];

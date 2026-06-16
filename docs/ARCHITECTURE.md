@@ -34,6 +34,11 @@ Two coherent designs exist:
 - **Stance A — answer/action synthesizer:** children are stateless completions; the host keeps its
   tool loop; frites fans out per turn and synthesizes the assistant turn — on a coding turn it
   emits the `tool_use` the host executes (the children *decide* the action; they don't edit files).
+  The synthesizer is not a separate model: it is `config.defaultAgents[0]`, invoked with
+  `role: "synth"` (see `specFor` in `apps/gateway/src/index.ts`). Children round-robin the same
+  array, so slot 0 is both the synthesizer and child index 0 — reordering `defaultAgents` changes
+  both. (Distinct from the *fan-out judge*, the cheap classifier under `fanOutPolicy: auto` that
+  decides **whether** to fan out.)
 - **Stance B — agentic broker:** children are full agents that do real file edits in isolated
   worktrees; frites reconciles their work with the test suite as the ground-truth oracle.
 
@@ -217,18 +222,42 @@ human gate).
 
 ## 4. Safety floor (non-negotiable, even in MVP)
 
-Full-auto agents with bypassed permissions on a real repo: the isolation boundary is the only
-control left.
-- **Allowlist** child env (never copy `process.env`); keep only HOME/PATH/locale + auth.
-- **Recursion guard:** scrub `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` / `CODEX_BASE_URL` /
-  MCP config; `FRITES_DEPTH` fuse refuses to spawn above a threshold; children launched with
-  `--strict-mcp-config` (claude) / `--ignore-user-config`-style isolation (codex) so they don't
-  auto-load frites.
-- **Secret denyRead:** `~/.ssh`, `~/.aws`, `.env` (via `@anthropic-ai/sandbox-runtime` in P4).
-- **Sandbox:** `codex -s workspace-write`; wrap each agent in sandbox-runtime (default-deny
-  egress, allowlist model + registry endpoints) in P4.
-- **Land only via patch → human-reviewed diff → fresh branch.** Never auto-merge, never push.
-- **Per-child** wall-clock timeout (group-kill the process tree) + `--max-budget-usd`.
+frites is a high-trust local automation tool. It intentionally launches child agents in headless,
+unattended mode so the council can finish without blocking on interactive approval prompts.
+
+Current permission posture:
+- **Gateway action mode:** children decide the next action, then the gateway emits normal host
+  `Read` / `Edit` / `Bash` tool calls. The host still executes those calls under its own permission
+  model, but the deciding children themselves run without interactive approvals: Claude uses
+  `--permission-mode bypassPermissions`; Codex uses `approval_policy="never"`.
+- **Gateway answer-only mode:** children are constrained further because they should inspect and
+  answer, not mutate. Claude disallows `Edit`, `Write`, and `NotebookEdit`; Codex runs with
+  `-s read-only` and writes only its final-message fallback outside the repo.
+- **MCP worktree mode:** `frites_implement` starts full agents in isolated git worktrees. Claude uses
+  bypassed permissions; Codex uses `-s workspace-write` with approvals disabled. The worktree plus
+  final human diff review is the current boundary.
+
+Implemented blast-radius controls:
+- **Allowlist child env:** never copy `process.env`; keep only HOME/PATH/locale/auth essentials.
+- **Subscription-first auth:** API keys are withheld by default (`passApiKeys: false`) unless the user
+  opts in or sets `FRITES_PASS_API_KEYS=1`.
+- **Recursion guard:** scrub `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, `OPENAI_API_BASE`,
+  `CODEX_BASE_URL`, and related base-URL variables; increment `FRITES_DEPTH`; refuse to spawn above
+  the configured max depth; launch children with `--strict-mcp-config` / `--ignore-user-config` so
+  they do not auto-load frites and recursively call the gateway.
+- **Patch gate:** MCP worktree mode lands changes only via returned diff -> explicit apply -> fresh
+  `frites/<runId>` branch. It never auto-merges or pushes.
+- **Local bind:** the gateway listens on `127.0.0.1` only.
+- **Per-child limits:** wall-clock timeout with process-group kill and per-child budget caps where the
+  backend supports them.
+
+Known hardening gaps:
+- No strong OS/container sandbox wraps Claude children yet.
+- Secret deny-read rules for paths such as `~/.ssh`, `~/.aws`, and `.env` are planned but not
+  enforced yet.
+- There is no prompt-preserving child mode today; security-conscious users should assume child agents
+  can inspect and, in action/worktree paths, modify the repo/worktree without per-command approval.
+- Hardened `sandbox-runtime` / container execution with default-deny egress remains planned work.
 
 ---
 

@@ -1,4 +1,4 @@
-import type { Candidate } from "./types";
+import type { Candidate } from "./types.js";
 
 /** Count changed (added/removed) lines in a unified diff, excluding headers. */
 export function diffSize(diff: string): number {

@@ -1,41 +1,66 @@
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { homedir, platform } from "node:os";
-import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const LABEL = "com.frites.gateway";
+const SYSTEMD_UNIT = "frites-gateway.service";
 
-/** Repo root — this file lives at <repo>/apps/cli/src/service.ts. */
-function repoRoot(): string {
-  return resolve(fileURLToPath(import.meta.url), "../../../..");
-}
 function plistPath(): string {
   return join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
+}
+function systemdUserDir(): string {
+  return join(homedir(), ".config", "systemd", "user");
+}
+function systemdUnitPath(): string {
+  return join(systemdUserDir(), SYSTEMD_UNIT);
 }
 function logDir(): string {
   return join(homedir(), ".frites");
 }
-function tsxEntry(repo: string): string {
-  const candidates = [
-    join(repo, "node_modules", "tsx", "dist", "cli.mjs"),
-    join(repo, "node_modules", ".bin", "tsx"),
-  ];
-  return candidates.find(existsSync) ?? candidates[0]!;
+export function gatewayBin(): string {
+  try {
+    return fileURLToPath(import.meta.resolve("@frites/gateway"));
+  } catch {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const candidates = [
+      join(here, "..", "..", "gateway", "dist", "index.js"),
+      join(here, "..", "..", "..", "gateway", "dist", "index.js"),
+      join(here, "..", "..", "apps", "gateway", "dist", "index.js"),
+      join(here, "..", "..", "apps", "gateway", "src", "index.ts"),
+    ].map((p) => resolve(p));
+    return candidates.find(existsSync) ?? candidates[0]!;
+  }
+}
+
+export async function runGateway(argv: string[]): Promise<void> {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--port") env.FRITES_GATEWAY_PORT = argv[++i];
+    else if (argv[i] === "--host") env.FRITES_GATEWAY_HOST = argv[++i];
+  }
+  const child = spawn(process.execPath, [gatewayBin()], { stdio: "inherit", env });
+  await new Promise<void>((resolveRun, reject) => {
+    child.on("error", reject);
+    child.on("exit", (code, signal) => {
+      if (signal) process.kill(process.pid, signal);
+      process.exitCode = code ?? 1;
+      resolveRun();
+    });
+  });
 }
 function escapeXml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-
-function buildPlist(port: number): string {
-  const repo = repoRoot();
-  const gateway = join(repo, "apps", "gateway", "src", "index.ts");
+function systemdQuote(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+function carriedEnv(): Array<[string, string]> {
   const env: Array<[string, string]> = [
     ["PATH", process.env.PATH ?? "/usr/bin:/bin:/usr/local/bin"],
     ["HOME", homedir()],
-    ["FRITES_GATEWAY_PORT", String(port)],
   ];
-  // Carry over any auth/overflow env present at install time so the daemon has it too.
   for (const k of [
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
@@ -44,6 +69,12 @@ function buildPlist(port: number): string {
   ]) {
     if (process.env[k]) env.push([k, process.env[k]!]);
   }
+  return env;
+}
+
+function buildPlist(port: number): string {
+  const gateway = gatewayBin();
+  const env: Array<[string, string]> = [...carriedEnv(), ["FRITES_GATEWAY_PORT", String(port)]];
   const envXml = env
     .map(([k, v]) => `      <key>${k}</key><string>${escapeXml(v)}</string>`)
     .join("\n");
@@ -55,10 +86,9 @@ function buildPlist(port: number): string {
   <key>ProgramArguments</key>
   <array>
     <string>${escapeXml(process.execPath)}</string>
-    <string>${escapeXml(tsxEntry(repo))}</string>
     <string>${escapeXml(gateway)}</string>
   </array>
-  <key>WorkingDirectory</key><string>${escapeXml(repo)}</string>
+  <key>WorkingDirectory</key><string>${escapeXml(homedir())}</string>
   <key>EnvironmentVariables</key>
   <dict>
 ${envXml}
@@ -69,6 +99,29 @@ ${envXml}
   <key>StandardErrorPath</key><string>${escapeXml(join(logDir(), "gateway.err"))}</string>
 </dict>
 </plist>
+`;
+}
+
+function buildSystemdUnit(port: number): string {
+  const env = [...carriedEnv(), ["FRITES_GATEWAY_PORT", String(port)] as [string, string]]
+    .map(([k, v]) => `Environment="${k}=${systemdQuote(v)}"`)
+    .join("\n");
+  return `[Unit]
+Description=frites gateway
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=${homedir()}
+ExecStart=${process.execPath} ${gatewayBin()}
+Restart=always
+RestartSec=2
+${env}
+StandardOutput=append:${join(logDir(), "gateway.log")}
+StandardError=append:${join(logDir(), "gateway.err")}
+
+[Install]
+WantedBy=default.target
 `;
 }
 
@@ -93,13 +146,30 @@ function unloadAgent(plist: string): void {
     }
   }
 }
+function systemctl(args: string[], stdio: "ignore" | "inherit" = "ignore"): void {
+  execFileSync("systemctl", ["--user", ...args], { stdio });
+}
+function enableSystemdUserUnit(unit: string): void {
+  systemctl(["daemon-reload"]);
+  systemctl(["enable", "--now", unit], "inherit");
+}
+function disableSystemdUserUnit(unit: string): void {
+  try {
+    systemctl(["disable", "--now", unit], "inherit");
+  } catch {
+    /* not installed or not running */
+  }
+  try {
+    systemctl(["daemon-reload"]);
+  } catch {
+    /* systemd unavailable */
+  }
+}
 
 export async function runService(argv: string[]): Promise<void> {
-  if (platform() !== "darwin") {
-    console.error(
-      "`frites service` manages a macOS launchd background service. On Linux, use a " +
-        "systemd --user unit; on any OS you can just run `pnpm gateway`.",
-    );
+  const os = platform();
+  if (os !== "darwin" && os !== "linux") {
+    console.error("frites service install currently supports macOS launchd and Linux systemd --user. Use `frites gateway` to run in the foreground on this OS.");
     process.exit(1);
   }
   const sub = argv[0] ?? "";
@@ -108,15 +178,24 @@ export async function runService(argv: string[]): Promise<void> {
     if (argv[i] === "--port") port = Number(argv[++i]);
   }
   const plist = plistPath();
+  const unit = systemdUnitPath();
 
   switch (sub) {
     case "install": {
       mkdirSync(logDir(), { recursive: true });
-      mkdirSync(join(homedir(), "Library", "LaunchAgents"), { recursive: true });
-      writeFileSync(plist, buildPlist(port));
-      unloadAgent(plist); // replace any existing instance
-      loadAgent(plist);
-      console.log(`✓ frites gateway installed as a background service (${LABEL}).`);
+      if (os === "darwin") {
+        mkdirSync(join(homedir(), "Library", "LaunchAgents"), { recursive: true });
+        writeFileSync(plist, buildPlist(port));
+        unloadAgent(plist);
+        loadAgent(plist);
+        console.log(`✓ frites gateway installed as a macOS launchd service (${LABEL}).`);
+      } else {
+        mkdirSync(systemdUserDir(), { recursive: true });
+        writeFileSync(unit, buildSystemdUnit(port));
+        disableSystemdUserUnit(SYSTEMD_UNIT);
+        enableSystemdUserUnit(SYSTEMD_UNIT);
+        console.log(`✓ frites gateway installed as a Linux systemd user service (${SYSTEMD_UNIT}).`);
+      }
       console.log(
         `  Running on http://127.0.0.1:${port} — auto-starts on login, restarts on crash, idle = $0.`,
       );
@@ -125,34 +204,56 @@ export async function runService(argv: string[]): Promise<void> {
         `  { "env": { "ANTHROPIC_BASE_URL": "http://127.0.0.1:${port}", "ANTHROPIC_AUTH_TOKEN": "frites" } }`,
       );
       console.log(
-        `\nManage: frites service status | restart | logs | uninstall   ·   logs: ${join(logDir(), "gateway.log")}`,
+        `\nManage: frites status | restart | logs | stop   ·   logs: ${join(logDir(), "gateway.log")}`,
       );
       return;
     }
     case "uninstall": {
-      unloadAgent(plist);
-      if (existsSync(plist)) rmSync(plist);
+      if (os === "darwin") {
+        unloadAgent(plist);
+        if (existsSync(plist)) rmSync(plist);
+      } else {
+        disableSystemdUserUnit(SYSTEMD_UNIT);
+        if (existsSync(unit)) rmSync(unit);
+        systemctl(["daemon-reload"]);
+      }
       console.log("✓ frites gateway service removed.");
       return;
     }
     case "restart": {
-      if (!existsSync(plist)) {
-        console.error("Not installed. Run: frites service install");
-        process.exit(1);
+      if (os === "darwin") {
+        if (!existsSync(plist)) {
+          console.error("Not installed. Run: frites install");
+          process.exit(1);
+        }
+        unloadAgent(plist);
+        loadAgent(plist);
+      } else {
+        if (!existsSync(unit)) {
+          console.error("Not installed. Run: frites install");
+          process.exit(1);
+        }
+        systemctl(["restart", SYSTEMD_UNIT], "inherit");
       }
-      unloadAgent(plist);
-      loadAgent(plist);
       console.log("✓ frites gateway restarted.");
       return;
     }
     case "status": {
-      console.log(`plist:   ${existsSync(plist) ? plist : "(not installed)"}`);
+      console.log(os === "darwin"
+        ? `plist:   ${existsSync(plist) ? plist : "(not installed)"}`
+        : `unit:    ${existsSync(unit) ? unit : "(not installed)"}`);
       try {
-        const list = execFileSync("launchctl", ["list"], { encoding: "utf8" });
-        const line = list.split("\n").find((l) => l.includes(LABEL));
-        console.log(`launchd: ${line ? line.trim() : "not loaded"}`);
+        if (os === "darwin") {
+          const list = execFileSync("launchctl", ["list"], { encoding: "utf8" });
+          const line = list.split("\n").find((l) => l.includes(LABEL));
+          console.log(`launchd: ${line ? line.trim() : "not loaded"}`);
+        } else {
+          const active = execFileSync("systemctl", ["--user", "is-active", SYSTEMD_UNIT], { encoding: "utf8" }).trim();
+          const enabled = execFileSync("systemctl", ["--user", "is-enabled", SYSTEMD_UNIT], { encoding: "utf8" }).trim();
+          console.log(`systemd: ${active} / ${enabled}`);
+        }
       } catch {
-        /* ignore */
+        console.log(os === "darwin" ? "launchd: not loaded" : "systemd: not loaded");
       }
       try {
         const res = await fetch(`http://127.0.0.1:${port}/v1/models`, {

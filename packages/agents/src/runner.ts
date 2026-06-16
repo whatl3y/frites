@@ -10,7 +10,8 @@ import type {
   FritesConfig,
   RunAgentFn,
 } from "@frites/core";
-import { assertDepth, buildChildEnv, currentDepth } from "./env-sandbox";
+import { assertDepth, buildChildEnv, currentDepth } from "./env-sandbox.js";
+import { startIdleTimeout } from "./timeout.js";
 
 export interface RunAccumulator {
   summary?: string;
@@ -34,6 +35,7 @@ function spawnAndStream(
   ctx: AgentRunContext,
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
+  hardTimeoutMs: number | undefined,
   logPath: string,
 ): Promise<AgentRunOutput> {
   return new Promise<AgentRunOutput>((resolve) => {
@@ -68,11 +70,18 @@ function spawnAndStream(
     };
     const escalate = () => setTimeout(() => killGroup("SIGKILL"), KILL_GRACE_MS);
 
-    const timer = setTimeout(() => {
-      killedReason = "timeout";
-      killGroup("SIGTERM");
-      escalate();
-    }, timeoutMs);
+    // Idle timeout (resets on output), not a wall-clock deadline: a child that's actively streaming
+    // events runs as long as it stays productive; only genuine silence reaps it. `idle.touch()` is
+    // called on every stdout/stderr chunk below. Optional hard ceiling is the non-resetting backstop.
+    const idle = startIdleTimeout({
+      idleMs: timeoutMs,
+      hardMs: hardTimeoutMs,
+      onFire: () => {
+        killedReason = "timeout";
+        killGroup("SIGTERM");
+        escalate();
+      },
+    });
 
     const onAbort = () => {
       killedReason = "abort";
@@ -82,11 +91,12 @@ function spawnAndStream(
     ctx.signal.addEventListener("abort", onAbort, { once: true });
 
     const cleanup = () => {
-      clearTimeout(timer);
+      idle.clear();
       ctx.signal.removeEventListener("abort", onAbort);
     };
 
     child.stdout?.on("data", (b: Buffer) => {
+      idle.touch();
       const s = b.toString();
       logChunks.push(s);
       buf += s;
@@ -103,7 +113,10 @@ function spawnAndStream(
         }
       }
     });
-    child.stderr?.on("data", (b: Buffer) => logChunks.push(b.toString()));
+    child.stderr?.on("data", (b: Buffer) => {
+      idle.touch();
+      logChunks.push(b.toString());
+    });
 
     const writeLog = () => {
       try {
@@ -171,6 +184,7 @@ export function makeRunAgent(opts: MakeRunAgentOptions): RunAgentFn {
       ...spec,
       maxBudgetUsd: spec.maxBudgetUsd ?? opts.config.perChildBudgetUsd,
       timeoutMs: spec.timeoutMs ?? opts.config.perChildTimeoutMs,
+      hardTimeoutMs: spec.hardTimeoutMs ?? opts.config.perChildHardTimeoutMs,
       // Codex reasoning depth: per-agent override wins, else the config default ("high"). Only
       // codex reads this (see codex.ts); claude children ignore it.
       reasoningEffort:
@@ -179,8 +193,9 @@ export function makeRunAgent(opts: MakeRunAgentOptions): RunAgentFn {
           : spec.reasoningEffort,
     };
     const timeoutMs = effSpec.timeoutMs ?? opts.config.perChildTimeoutMs;
+    const hardTimeoutMs = effSpec.hardTimeoutMs ?? opts.config.perChildHardTimeoutMs;
     const argv = def.buildArgv(effSpec, ctx);
     const logPath = join(tmpdir(), `frites-${spec.id}-${Date.now()}.log`);
-    return spawnAndStream(def, argv, ctx, env, timeoutMs, logPath);
+    return spawnAndStream(def, argv, ctx, env, timeoutMs, hardTimeoutMs, logPath);
   };
 }

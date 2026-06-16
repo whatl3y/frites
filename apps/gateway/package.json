@@ -1,11 +1,24 @@
 {
   "name": "@frites/gateway",
   "version": "0.0.0",
-  "private": true,
+  "description": "Transparent model-provider gateway for frites",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "bin": {
-    "frites-gateway": "./src/index.ts"
+    "frites-gateway": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@frites/agents": "workspace:*",

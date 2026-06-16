@@ -1,4 +1,4 @@
-import { type FritesConfig, withChildDirective } from "./config";
+import { type FritesConfig, withChildDirective } from "./config.js";
 
 export interface FanOutDecision {
   fanOut: boolean;
@@ -96,6 +96,16 @@ export interface AnswerCouncilResult {
   childAnswers: string[];
 }
 
+const ANSWER_FORMATTING_DIRECTIVE = [
+  "Format the final user-facing answer as readable GitHub-flavored Markdown when structure helps:",
+  "use short headings, bold emphasis, numbered lists, bullet lists, tables, and links where appropriate.",
+  "Do not force formatting for trivial one-line answers, and do not wrap the whole response in a code block.",
+].join(" ");
+
+function withAnswerFormatting(prompt: string): string {
+  return `${prompt}\n\n${ANSWER_FORMATTING_DIRECTIVE}`;
+}
+
 /**
  * The transparent-proxy brain for answer/reasoning turns: optionally fan out to N
  * children (diverse framings), then synthesize one vetted answer. No worktrees/tools —
@@ -110,7 +120,7 @@ export async function runAnswerCouncil(
 
   if (!decision.fanOut) {
     log(`single agent (${decision.reason})`);
-    const sole = withChildDirective(prompt, deps.config.childDirective);
+    const sole = withChildDirective(withAnswerFormatting(prompt), deps.config.childDirective);
     const answer = await deps.complete(sole, { role: "child", index: 0 });
     return { answer, fannedOut: false, decision, childAnswers: [answer] };
   }
@@ -137,7 +147,7 @@ export async function runAnswerCouncil(
   );
 
   log("synthesizing");
-  const answer = await deps.complete(buildSynthesisPrompt(prompt, childAnswers), {
+  const answer = await deps.complete(buildSynthesisPrompt(withAnswerFormatting(prompt), childAnswers), {
     role: "synth",
     index: -1,
   });

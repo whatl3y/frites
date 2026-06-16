@@ -8,7 +8,10 @@ export interface AgentSpec {
   /** Prompt-framing variant used for diversity, e.g. "minimal change" vs "clean refactor". */
   framing?: string;
   maxBudgetUsd?: number;
+  /** Idle timeout override (max silence before reap). Falls back to config.perChildTimeoutMs. */
   timeoutMs?: number;
+  /** Optional absolute wall-clock ceiling override. Falls back to config.perChildHardTimeoutMs (off when unset). */
+  hardTimeoutMs?: number;
   /**
    * Codex-only reasoning depth (`model_reasoning_effort`). Falls back to config.codexReasoningEffort
    * when omitted. Ignored by claude children.

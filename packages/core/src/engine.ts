@@ -1,6 +1,6 @@
-import type { FritesConfig } from "./config";
-import { type EngineEventHandler, noopEventHandler } from "./events";
-import { heuristicJudge } from "./judge";
+import type { FritesConfig } from "./config.js";
+import { type EngineEventHandler, noopEventHandler } from "./events.js";
+import { heuristicJudge } from "./judge.js";
 import type {
   AgentSpec,
   Candidate,
@@ -9,7 +9,7 @@ import type {
   ReconcileDecision,
   RunResult,
   Task,
-} from "./types";
+} from "./types.js";
 
 // ── Structural deps (satisfied by @frites/isolation and @frites/agents) ──
 // Keeping these as interfaces here means the engine has zero CLI/MCP/git coupling

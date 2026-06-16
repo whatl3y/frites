@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env node
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import {
@@ -26,7 +26,7 @@ import {
 import { defaultRunners, makeRunAgent } from "@frites/agents";
 import { WorktreeManager } from "@frites/isolation";
 import { existsSync } from "node:fs";
-import { runLogs, runService } from "./service";
+import { runGateway, runLogs, runService } from "./service.js";
 
 // ── entrypoint dispatch ──
 
@@ -37,7 +37,14 @@ async function main(): Promise<void> {
   const argv = raw[0] === "--" ? raw.slice(1) : raw;
   const first = argv[0];
   if (first === "config") return runConfig(argv.slice(1));
+  if (first === "gateway") return runGateway(argv.slice(1));
   if (first === "service") return runService(argv.slice(1));
+  if (first === "install") return runService(["install", ...argv.slice(1)]);
+  if (first === "uninstall") return runService(["uninstall", ...argv.slice(1)]);
+  if (first === "start") return runService(["install", ...argv.slice(1)]);
+  if (first === "stop") return runService(["uninstall", ...argv.slice(1)]);
+  if (first === "restart") return runService(["restart", ...argv.slice(1)]);
+  if (first === "status") return runService(["status", ...argv.slice(1)]);
   if (first === "logs") return runLogs(argv.slice(1));
   if (first === "run") return runTask(argv.slice(1));
   if (first === "help" || first === "--help" || first === "-h") {
@@ -52,10 +59,13 @@ function printTopUsage(): void {
     [
       "frites — multi-agent coding council",
       "",
+      "Install: frites install [--port N]        # install/start the gateway service",
+      "Manage:  frites status | restart | stop | uninstall",
+      "Logs:    frites logs [-f|--follow] [-n N] [--level debug|info|warn|error]",
+      "Gateway: frites gateway [--port N] [--host addr]  # run in foreground",
       'Run:     frites "<task>" [--repo path] [--n N] [--agents claude,codex] [--accept ...] [--base ref] [--apply]',
       "Config:  frites config <init|show|get|set|unset|validate|path> [--global] [--repo path]",
-      "Service: frites service <install|uninstall|restart|status|logs> [--port N]",
-      "Logs:    frites logs [-f|--follow] [-n N] [--level debug|info|warn|error]",
+      "Compat:  frites service <install|uninstall|restart|status|logs> [--port N]",
     ].join("\n"),
   );
 }

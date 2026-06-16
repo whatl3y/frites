@@ -1,11 +1,21 @@
 {
   "name": "@frites/agents",
   "version": "0.0.0",
-  "private": true,
+  "description": "Agent runner adapters and completion helpers for frites",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@frites/core": "workspace:*"

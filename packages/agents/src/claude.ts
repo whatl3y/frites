@@ -1,4 +1,4 @@
-import type { CliRunnerDef } from "./runner";
+import type { CliRunnerDef } from "./runner.js";
 
 /**
  * Headless Claude Code. Reuses the machine's subscription OAuth (keychain) — no API key

@@ -1,4 +1,4 @@
-import type { CandidateStatus, ChildKind, ReconcileDecision } from "./types";
+import type { CandidateStatus, ChildKind, ReconcileDecision } from "./types.js";
 
 /** Engine progress events. The MCP surface maps these to notifications/progress. */
 export type EngineEvent =

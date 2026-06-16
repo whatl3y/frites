@@ -8,6 +8,9 @@
     "node": ">=22"
   },
   "scripts": {
+    "build": "pnpm --filter @frites/core build && pnpm --filter @frites/agents build && pnpm --filter @frites/isolation build && pnpm --filter @frites/gateway build && pnpm --filter @frites/cli build",
+    "clean": "rm -rf apps/*/dist packages/*/dist apps/*/*.tsbuildinfo packages/*/*.tsbuildinfo",
+    "prepack": "pnpm build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

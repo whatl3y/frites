@@ -18,39 +18,71 @@ Full design & rationale: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
-## Quickstart
+## Install and use
 
-**Prereqs:** `claude` and/or `codex` installed + logged in; Node ≥ 22; pnpm 10.x. Three commands:
+**Prereqs:** `claude` and/or `codex` installed + logged in; Node >= 22; macOS or a major Linux distribution with systemd user services.
 
 ```bash
-cd ~/nodejs/frites
-pnpm install
-pnpm frites -- service install      # runs the gateway as a background service (launchd)
+npm install -g @frites/cli
+frites install
 ```
 
-That starts the transparent-proxy gateway on `http://127.0.0.1:6767` — **always-on**, auto-starts on
-login, restarts on crash, and **idle costs nothing** (it only spends when you send prompts). Then
-point Claude Code at it — add to `~/.claude/settings.json` and open a **new** session:
+That starts the transparent-proxy gateway on `http://127.0.0.1:6767` as an always-on background service. On macOS, `frites install` writes a launchd user agent. On Linux, it writes and enables a `systemd --user` unit. In both cases it auto-starts on login, restarts on crash, and idle costs nothing because it only spends when you send prompts.
+
+Point Claude Code and/or Codex at the gateway, then open a new session:
+
+**Claude Code** — add to `~/.claude/settings.json`:
 
 ```json
 { "env": { "ANTHROPIC_BASE_URL": "http://127.0.0.1:6767", "ANTHROPIC_AUTH_TOKEN": "frites" } }
 ```
 
-That's it — every prompt now goes through the council, using the subscriptions you're already
-logged into. Watch live spend with `pnpm frites -- service logs`.
+**Codex** — add to `~/.codex/config.toml`, then `export FRITES_KEY=frites`:
 
-Prefer not to install a service? Run it in the foreground instead: `pnpm gateway`.
+```toml
+model_provider = "frites"
+[model_providers.frites]
+base_url = "http://127.0.0.1:6767/v1"
+wire_api = "responses"
+env_key = "FRITES_KEY"
+```
+
+Common commands:
+
+```bash
+frites install             # install/start the gateway service
+frites install --port 7000 # install/start on a different port
+frites status              # installed? loaded? reachable?
+frites logs                # show recent gateway logs
+frites logs -f             # follow gateway logs live
+frites logs -f --level debug
+frites restart             # restart after config changes or upgrades
+frites stop                # remove the background service
+frites uninstall           # same as stop
+frites gateway             # run the gateway in the foreground instead
+frites gateway --port 7000 --host 127.0.0.1
+frites config init --global
+frites config set --global fanOutPolicy auto
+frites config set --global fanOutScope first-turn
+frites config set --global defaultN 3
+frites config show --global
+frites "implement X" --repo /path/to/repo --n 2 --agents claude,codex --apply
+```
+
+The longer `frites service <install|status|restart|logs|uninstall>` form remains supported, but the direct commands above are the intended UX.
 
 ---
 
 ## Managing the service
 
 ```bash
-pnpm frites -- service status      # installed? loaded? reachable?
-pnpm frites -- service restart     # e.g. after pulling frites updates
-pnpm frites -- service uninstall   # remove it
-pnpm frites -- service install --port 7000   # use a different port
+frites status              # installed? loaded? reachable?
+frites restart             # e.g. after upgrading @frites/cli
+frites stop                # remove the background service
+frites install --port 7000 # use a different port
 ```
+
+The longer `frites service <status|restart|uninstall|install>` form remains supported for compatibility.
 
 ---
 
@@ -91,10 +123,10 @@ logs — request → continuation/fan-out decision → each child's start/finish
 spend. Tail them with:
 
 ```bash
-pnpm frites -- logs                         # last 60 lines
-pnpm frites -- logs -f                       # follow live
-pnpm frites -- logs -f --level debug         # include prompt/decision previews
-pnpm frites -- logs -n 200 --level warn      # only warnings + errors
+frites logs                         # last 60 lines
+frites logs -f                       # follow live
+frites logs -f --level debug         # include prompt/decision previews
+frites logs -n 200 --level warn      # only warnings + errors
 ```
 
 Crank verbosity with `config set --global logLevel debug` (or `FRITES_LOG_LEVEL=debug`), then
@@ -108,11 +140,11 @@ frites reads `.frites/config.json` in the repo, layered over `~/.frites/config.j
 Manage it with the CLI — no hand-editing:
 
 ```bash
-pnpm frites -- config init --global                    # scaffold ~/.frites/config.json
-pnpm frites -- config set --global fanOutPolicy auto   # always | auto | necessary | never
-pnpm frites -- config set --global fanOutScope first-turn  # first-turn | per-turn
-pnpm frites -- config set --global defaultN 3
-pnpm frites -- config show --global
+frites config init --global                    # scaffold ~/.frites/config.json
+frites config set --global fanOutPolicy auto   # always | auto | necessary | never
+frites config set --global fanOutScope first-turn  # first-turn | per-turn
+frites config set --global defaultN 3
+frites config show --global
 ```
 
 | Key | Meaning |
@@ -120,14 +152,14 @@ pnpm frites -- config show --global
 | `fanOutPolicy` | how aggressively to fan out (= metered spend): `always`, `auto` (coordinator judges per-prompt), `necessary` (only hard/contested), `never` (single agent) |
 | `fanOutScope` | which turns of a request may fan out: `first-turn` (default — fan out on the substantive request turn, then a single agent drives the mechanical tool-loop; re-engages each new user request) or `per-turn` (fan out on every allowed turn, incl. each tool step — max cross-checking, max spend). Background/utility calls (haiku-tier title/summary/topic traffic from the host) always run a single agent regardless. |
 | `defaultN` | how many child agents (1–5) |
-| `defaultAgents` | which agents + models — each `{ kind: "claude-cli"\|"codex-cli", model, framing }` |
+| `defaultAgents` | which agents + models — each `{ kind: "claude-cli"\|"codex-cli", model, framing }`. **Order is load-bearing:** `defaultAgents[0]` doubles as the synthesizer that merges the council (there is no separate synthesizer setting); children round-robin the whole list. Reorder to change which agent synthesizes — but note slot 0 is then also child index 0. |
 | `perChildBudgetUsd` / `perChildTimeoutMs` | per-child guardrails |
 | `pricing` | optional per-model rate table (`{ "<model>": { inputPerMtok, outputPerMtok, cachedInputPerMtok?, cacheWritePerMtok? } }`, in $/million tokens) used to **estimate** child spend when a backend doesn't self-report it. claude reports cost authoritatively; codex on the ChatGPT backend reports none, so without rates its spend reads as unknown (and looked "free"). Opt-in — no built-in rates; estimated figures are marked `~`. Keys match a model exactly, else by prefix either direction. |
 | `streamProgress` | stream live council progress to the client during a turn (default `true`) |
 | `progressDetail` | per-agent panel detail: `telemetry` (default — state + token/time/cost counters) or `interleaved` (also stream each child's output live, agent-prefixed) |
 | `logLevel` | gateway log verbosity: `debug`, `info` (default), `warn`, `error` |
 
-After changing config, `pnpm frites -- service restart` to pick it up.
+After changing config, `frites service restart` to pick it up.
 
 ---
 
@@ -154,40 +186,26 @@ The gateway already edits code inline (it emits the `Read`/`Edit`/`Bash` calls y
 The worktree path is for when you want N **competing** full implementations run in parallel, with
 your test suite filtering them, yielding **one vetted diff** to apply to a fresh branch.
 
-Register once (available in every repo):
+Register once for Claude Code (available in every repo):
 
 ```bash
 claude mcp add --scope user frites -- pnpm --dir ~/nodejs/frites mcp
 ```
 
-Then in a session: *"use frites to implement X"* → review the diff → *"use frites_apply with
-runId …"*. Or run it standalone:
-
-```bash
-pnpm frites -- "implement X" --repo /path/to/repo --n 2 --agents claude,codex --apply
-```
-
----
-
-## Codex
-
-**Transparent proxy** — `~/.codex/config.toml`:
-
-```toml
-model_provider = "frites"
-[model_providers.frites]
-base_url = "http://127.0.0.1:6767/v1"
-wire_api = "responses"
-env_key = "FRITES_KEY"
-```
-
-**MCP worktree tool** — `~/.codex/config.toml` (the 60s default timeout **must** be raised):
+Or register once for Codex in `~/.codex/config.toml` (the 60s default timeout **must** be raised):
 
 ```toml
 [mcp_servers.frites]
 command = "pnpm"
 args = ["--dir", "/Users/whatl3y/nodejs/frites", "mcp"]
 tool_timeout_sec = 600
+```
+
+Then in a session: *"use frites to implement X"* → review the diff → *"use frites_apply with
+runId …"*. Or run it standalone:
+
+```bash
+frites "implement X" --repo /path/to/repo --n 2 --agents claude,codex --apply
 ```
 
 ---
@@ -233,7 +251,35 @@ tool-call emission on `/v1/responses` (Anthropic `/v1/messages` is done). See
 
 ## Safety
 
-frites spawns full-auto agents. It builds child env by allowlist and scrubs base-URL vars
-(recursion guard), runs each worktree agent in isolation, and **only ever lands changes via an
-explicit `apply` to a fresh branch** — never auto-merge, never push. The gateway binds `127.0.0.1`
-only. See [ARCHITECTURE.md §4](docs/ARCHITECTURE.md).
+frites deliberately runs child agents in unattended/headless mode, so treat it as a high-trust local
+automation tool rather than a permission-prompt-preserving wrapper.
+
+**Gateway mode.** The transparent gateway asks child agents to reason about the turn, then emits the
+normal `Read` / `Edit` / `Bash` tool calls back to your host. The host still executes those tool calls
+under its own permission model. However, the child council itself is spawned without interactive
+approval prompts: Claude Code children are launched with `--permission-mode bypassPermissions`, and
+Codex children are launched with `approval_policy="never"`. For answer-only council calls, frites
+adds extra guards (`Edit`, `Write`, and `NotebookEdit` are disallowed for Claude children; Codex uses
+`-s read-only`). For action-producing turns, do not assume every child decision has gone through your
+usual per-command approval UI before the gateway returns a synthesized tool call.
+
+**MCP worktree mode.** `frites_implement` starts full agents in isolated git worktrees. Claude uses
+bypassed permissions; Codex uses `workspace-write` with approvals disabled. This is intentional so N
+agents can run to completion without prompting each other to a halt. The safety boundary is the
+worktree plus the final human gate: frites returns candidate diffs, and `frites_apply` applies the
+chosen diff to a fresh `frites/<runId>` branch. It never auto-merges or pushes.
+
+**What frites does to reduce blast radius.** Child environments are built by allowlist rather than by
+copying all of `process.env`; provider base-URL variables are scrubbed to prevent recursive calls back
+into frites; API keys are withheld by default (`passApiKeys: false`); a recursion-depth fuse stops
+nested frites launches; children have per-child timeout and budget limits; the gateway binds to
+`127.0.0.1` only.
+
+**What is not hardened yet.** The current implementation does not provide a strong OS/container
+sandbox for Claude children, does not yet enforce deny-read rules for secrets such as `~/.ssh`,
+`~/.aws`, or `.env`, and does not provide a mode that preserves normal interactive permission prompts
+inside the child agents. Security-conscious users should use frites only in repositories and working
+trees they are comfortable letting local headless agents inspect and modify, keep `passApiKeys` off
+unless explicitly needed, review diffs before applying, and avoid running the gateway against
+untrusted repositories until the planned sandbox-runtime/container hardening lands. See
+[ARCHITECTURE.md §4](docs/ARCHITECTURE.md).

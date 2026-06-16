@@ -1,4 +1,4 @@
-import type { CliRunnerDef } from "./runner";
+import type { CliRunnerDef } from "./runner.js";
 
 /**
  * Headless Codex. Reuses the machine's ChatGPT sign-in (~/.codex/auth.json). Approval is

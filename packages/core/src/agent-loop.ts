@@ -1,5 +1,5 @@
-import { type FanOutDecision, decideFanOut } from "./answer-council";
-import type { FritesConfig } from "./config";
+import { type FanOutDecision, decideFanOut } from "./answer-council.js";
+import type { FritesConfig } from "./config.js";
 // withChildDirective is appended at the council level; childActionPrompt embeds the directive in
 // its AUTHORITATIVE region (above the untrusted transcript), so it takes the directive directly.
 

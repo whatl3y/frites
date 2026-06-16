@@ -10,7 +10,10 @@ export const AgentSpecSchema = z.object({
   model: z.string().optional(),
   framing: z.string().optional(),
   maxBudgetUsd: z.number().positive().optional(),
+  /** Per-agent override of the IDLE timeout (max silence before reap). Falls back to config.perChildTimeoutMs. */
   timeoutMs: z.number().int().positive().optional(),
+  /** Per-agent override of the optional absolute hard ceiling. Falls back to config.perChildHardTimeoutMs (off when unset). */
+  hardTimeoutMs: z.number().int().positive().optional(),
   /**
    * Codex-only per-agent reasoning depth override (`model_reasoning_effort`). Falls back to
    * config.codexReasoningEffort when omitted. Ignored by claude children (claude has no such flag;
@@ -76,7 +79,25 @@ export const FritesConfigSchema = z.object({
       framing: "Prefer a clean, well-structured solution.",
     },
   ]),
+  /**
+   * IDLE timeout for child agents (ms): a child is reaped only after this long with NO output, not
+   * this long after spawn. The idle countdown resets on every chunk the child streams, so an
+   * exhaustive run that keeps emitting events runs as long as it stays productive — only genuine
+   * silence (deadlock, stalled read, output-less spin) trips it. Default 600_000 = 10 min of
+   * silence, a strong hang signal that won't kill a healthy streaming child. Keep it comfortably
+   * above the longest output-less stretch you expect (e.g. a slow build/test a child shells out to,
+   * which is silent on the child's stdout until it returns). See perChildHardTimeoutMs for an
+   * absolute ceiling. NOTE: the oracle reuses this value as a per-command wall-clock cap on
+   * build/test/lint (where a single command's idle-vs-wall-clock distinction doesn't apply).
+   */
   perChildTimeoutMs: z.number().int().positive().default(600_000),
+  /**
+   * OPTIONAL absolute wall-clock ceiling for child agents (ms): kills a child this long after spawn
+   * regardless of activity — the secondary backstop for a child that spins forever while still
+   * dribbling output (which the idle timeout alone never catches). Off by default; set it only if
+   * you want a guaranteed upper bound on a single child's wall-clock life.
+   */
+  perChildHardTimeoutMs: z.number().int().positive().optional(),
   perChildBudgetUsd: z.number().positive().default(2),
   oracle: z
     .object({

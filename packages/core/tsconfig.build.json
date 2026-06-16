@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "./.tsbuildinfo",
+    "paths": {
+      "@frites/core": ["./src/index.ts"],
+      "@frites/isolation": ["../isolation/src/index.ts"],
+      "@frites/agents": ["../agents/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["test/**", "dist/**"]
+}

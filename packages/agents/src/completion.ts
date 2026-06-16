@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import type { ChildKind, FritesConfig } from "@frites/core";
-import { assertDepth, buildChildEnv, currentDepth } from "./env-sandbox";
+import { assertDepth, buildChildEnv, currentDepth } from "./env-sandbox.js";
+import { startIdleTimeout } from "./timeout.js";
 
 /**
  * A normalized streaming event from a child completion, delivered live as the CLI produces it.
@@ -32,7 +33,10 @@ export interface CompletionOptions {
   model?: string;
   signal?: AbortSignal;
   passApiKeys?: boolean;
+  /** IDLE timeout (max silence before reap), resetting on child output. Falls back to config.perChildTimeoutMs. */
   timeoutMs?: number;
+  /** Optional absolute wall-clock ceiling. Falls back to config.perChildHardTimeoutMs (off when unset). */
+  hardTimeoutMs?: number;
   /**
    * The caller's real working directory (the repo the outer CLI was launched in), parsed from
    * the inbound request. When present and valid the child runs THERE so it can actually read the
@@ -260,6 +264,7 @@ export async function runCompletion(
     passApiKeys: opts.passApiKeys,
   });
   const timeoutMs = opts.timeoutMs ?? opts.config.perChildTimeoutMs;
+  const hardTimeoutMs = opts.hardTimeoutMs ?? opts.config.perChildHardTimeoutMs;
   // Run in the caller's real repo when we have one (so reads actually work); otherwise an empty
   // scratch dir. Only `scratch` — a dir WE created — is ever removed; the caller's repo never is.
   const repoCwd =
@@ -299,6 +304,7 @@ export async function runCompletion(
         cwd,
         env,
         timeoutMs,
+        hardTimeoutMs,
         prompt,
         (line) => emit(parseClaudeLine(line, acc)),
         opts.signal,
@@ -344,6 +350,7 @@ export async function runCompletion(
         cwd,
         env,
         timeoutMs,
+        hardTimeoutMs,
         prompt,
         (line) => emit(parseCodexLine(line, acc)),
         opts.signal,
@@ -369,6 +376,10 @@ export async function runCompletion(
  * Spawn a CLI, pipe the prompt over stdin, and deliver stdout to `onLine` one newline-delimited
  * line at a time as it arrives (so callers stream). Resolves with the full raw stdout (for the
  * final-text fallback); rejects on non-zero exit / timeout / abort.
+ *
+ * `timeoutMs` is an IDLE timeout (max silence before reap), reset on every chunk of child output —
+ * a child that keeps streaming runs as long as it stays productive. `hardTimeoutMs` is an optional
+ * non-resetting absolute ceiling (off when undefined).
  */
 function runStreaming(
   cmd: string,
@@ -376,6 +387,7 @@ function runStreaming(
   cwd: string,
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
+  hardTimeoutMs: number | undefined,
   stdin: string,
   onLine: (line: string) => void,
   signal?: AbortSignal,
@@ -404,16 +416,29 @@ function runStreaming(
         /* gone */
       }
     };
-    const timer = setTimeout(() => {
-      killGroup("SIGKILL");
-      reject(new Error(`${cmd} timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
+    // Idle timeout: reset on output (see runner.ts for the rationale), not a wall-clock deadline.
+    const idle = startIdleTimeout({
+      idleMs: timeoutMs,
+      hardMs: hardTimeoutMs,
+      onFire: (reason) => {
+        killGroup("SIGKILL");
+        reject(
+          new Error(
+            reason === "hard"
+              ? `${cmd} exceeded hard ceiling of ${hardTimeoutMs}ms`
+              : `${cmd} timed out after ${timeoutMs}ms with no output`,
+          ),
+        );
+      },
+    });
     const onAbort = () => {
+      idle.clear();
       killGroup("SIGKILL");
       reject(new Error("aborted"));
     };
     signal?.addEventListener("abort", onAbort, { once: true });
     child.stdout?.on("data", (b: Buffer) => {
+      idle.touch();
       const s = b.toString();
       out += s;
       buf += s;
@@ -430,13 +455,16 @@ function runStreaming(
         }
       }
     });
-    child.stderr?.on("data", (b: Buffer) => (err += b.toString()));
+    child.stderr?.on("data", (b: Buffer) => {
+      idle.touch();
+      err += b.toString();
+    });
     child.on("error", (e) => {
-      clearTimeout(timer);
+      idle.clear();
       reject(e);
     });
     child.on("close", (code) => {
-      clearTimeout(timer);
+      idle.clear();
       signal?.removeEventListener("abort", onAbort);
       // Flush any trailing line without a terminating newline.
       if (buf.trim()) {

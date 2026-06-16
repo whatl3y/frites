@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env node
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -16,8 +16,8 @@ import {
   runAnswerCouncil,
 } from "@frites/core";
 import { type ChildEvent, estimateCostUsd, pricingFor, runCompletion } from "@frites/agents";
-import { type Logger, createLogger, resolveLogLevel } from "./logger";
-import { type ProgressSink, createProgressSink } from "./progress";
+import { type Logger, createLogger, resolveLogLevel } from "./logger.js";
+import { type ProgressSink, createProgressSink } from "./progress.js";
 
 const HOST = process.env.FRITES_GATEWAY_HOST ?? "127.0.0.1";
 const PORT = Number(process.env.FRITES_GATEWAY_PORT ?? 6767);

@@ -29,6 +29,9 @@ importers:
       '@frites/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@frites/gateway':
+        specifier: workspace:*
+        version: link:../gateway
       '@frites/isolation':
         specifier: workspace:*
         version: link:../../packages/isolation

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import type { CommandResult, OracleCommands, OracleResult } from "./types";
+import type { CommandResult, OracleCommands, OracleResult } from "./types.js";
 
 const OUTPUT_TAIL = 4000;
 
