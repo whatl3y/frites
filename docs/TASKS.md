@@ -534,7 +534,7 @@ Every app/package gets a page:
 
 ## Synthesize Winning Implementation From Multiple Passing Child Diffs
 
-Status: planned, not implemented.
+Status: implemented and shipped to `main` (2026-06-16). `synthesisMode` defaults to `passing-only` (on); set `"off"` for winner-take-one. Lives in `packages/core/src/synthesis.ts` + the `maybeRunSynthesis` stage in `engine.ts`, surfaced via MCP/CLI and `frites_apply`/`--apply-candidate`. The "Review Refinements (folded in)" section below records how the shipped design differs from the original plan; the rest of this section is retained as the design record.
 
 Goal: improve MCP/worktree implementation quality by allowing frites to combine the strongest ideas from multiple successful child-agent implementations into one synthesized, oracle-verified final candidate, instead of always recommending a single child diff unchanged.
 
