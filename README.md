@@ -80,7 +80,9 @@ Full command + flag reference: [CLI](docs/reference/cli.md). Configuration keys:
 126/126 unit tests passing; the gateway (both surfaces, SSE streaming, fan-out + synthesis, cost
 telemetry), the launchd/systemd service, and the MCP worktree path are working and verified against
 a real `claude` client. Remaining: the fan-out **quality** value-gate and Codex tool-call emission
-on `/v1/responses`. Details: [Current status](docs/roadmap/current-status.md).
+on `/v1/responses`. Details: [Current status](docs/roadmap/current-status.md). First value-gate data
+is in [Benchmarks](eval/README.md#results) (solo vs. fusion on Aider polyglot — on the gateway
+answer path, fusion shows no reliable quality lift yet).
 
 ## Learn more
 
@@ -88,6 +90,7 @@ on `/v1/responses`. Details: [Current status](docs/roadmap/current-status.md).
 - [Architecture overview](docs/architecture/overview.md): how it's built
 - [Safety model](docs/product/safety-model.md): headless-child posture and current hardening gaps
 - [Auth & billing](docs/product/auth-and-billing.md): subscription-first, metered programmatic use
+- [Benchmarks](eval/README.md): solo-vs-fusion results on Aider polyglot + the evaluation runbook
 
 ## License
 

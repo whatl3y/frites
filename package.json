@@ -19,7 +19,8 @@
     "gateway": "tsx apps/gateway/src/index.ts",
     "frites": "tsx apps/cli/src/index.ts",
     "eval": "tsx eval/value-gate.ts",
-    "bench": "tsx eval/bench-matrix.ts"
+    "bench": "tsx eval/bench-matrix.ts",
+    "wbench": "tsx eval/worktree-matrix.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
