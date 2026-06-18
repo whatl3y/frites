@@ -1,6 +1,6 @@
 {
   "name": "@frites/core",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Shared engine, config, and types for frites",
   "license": "Apache-2.0",
   "type": "module",

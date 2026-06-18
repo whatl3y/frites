@@ -1,6 +1,6 @@
 {
   "name": "frites",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
@@ -20,9 +20,14 @@
     "frites": "tsx apps/cli/src/index.ts",
     "eval": "tsx eval/value-gate.ts",
     "bench": "tsx eval/bench-matrix.ts",
-    "wbench": "tsx eval/worktree-matrix.ts"
+    "wbench": "tsx eval/worktree-matrix.ts",
+    "changeset": "changeset",
+    "version:packages": "changeset version && pnpm install --lockfile-only",
+    "release": "pnpm build && changeset publish",
+    "release:dry": "pnpm build && pnpm -r publish --dry-run --no-git-checks"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

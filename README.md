@@ -92,6 +92,43 @@ answer path, fusion shows no reliable quality lift yet).
 - [Auth & billing](docs/product/auth-and-billing.md): subscription-first, metered programmatic use
 - [Benchmarks](eval/README.md): solo-vs-fusion results on Aider polyglot + the evaluation runbook
 
+## Development
+
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide. frites is a pnpm
+monorepo (`apps/*` + `packages/*`) targeting Node >= 22, with pnpm pinned via the root
+`packageManager` field.
+
+```bash
+pnpm install        # install workspace deps
+pnpm build          # compile all packages (core → agents → isolation → gateway → cli)
+pnpm test           # run the unit suite (vitest)
+pnpm typecheck      # type-check without emitting
+pnpm frites ...     # run the CLI from source via tsx (no build needed)
+```
+
+Deeper guides live in [docs/development/](docs/development/):
+
+- [Repository structure](docs/development/repository-structure.md) — how the workspace is laid out
+- [Local development](docs/development/local-development.md) — running the gateway / CLI / MCP from source
+- [Testing](docs/development/testing.md) — the test suite and conventions
+- [Evaluation](docs/development/evaluation.md) — the fan-out value-gate and benchmarks
+- [Release & packaging](docs/development/release-and-packaging.md) — versioning and publishing to npm
+
+### Releasing
+
+The `@frites/*` packages are published to npm together (fixed / lockstep versioning) using
+[Changesets](https://github.com/changesets/changesets). In the PR that makes a user-facing change:
+
+```bash
+pnpm changeset      # pick the bump (patch / minor / major) + write a summary, then commit it
+```
+
+On merge to `main`, CI opens a **"Version Packages"** PR; merging that PR builds and publishes every
+package to npm in dependency order. To publish by hand from a clean checkout, run `pnpm version:packages`
+then `pnpm release` (`pnpm release:dry` previews exactly what would ship). The full flow — including the
+one-time `NPM_TOKEN` setup — is in
+[Release & packaging](docs/development/release-and-packaging.md).
+
 ## License
 
 frites is licensed under the [Apache License 2.0](LICENSE).

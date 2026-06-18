@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/whatl3y/frites/discussions
+    about: Ask questions and discuss ideas here instead of opening an issue.
+  - name: Report a security vulnerability
+    url: https://github.com/whatl3y/frites/security/advisories/new
+    about: Please report vulnerabilities privately via GitHub, not as a public issue.

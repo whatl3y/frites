@@ -182,6 +182,17 @@ export async function runService(argv: string[]): Promise<void> {
 
   switch (sub) {
     case "install": {
+      // A from-source checkout won't have the gateway compiled yet; the service runs plain
+      // `node dist/index.js`, so registering it now would only crash-loop (MODULE_NOT_FOUND)
+      // while reporting success. Fail loudly with the fix instead of writing a doomed unit.
+      const gateway = gatewayBin();
+      if (!existsSync(gateway)) {
+        console.error(
+          `Gateway not built — ${gateway} is missing.\n` +
+            "Run `pnpm build` first, then `frites install`.",
+        );
+        process.exit(1);
+      }
       mkdirSync(logDir(), { recursive: true });
       if (os === "darwin") {
         mkdirSync(join(homedir(), "Library", "LaunchAgents"), { recursive: true });

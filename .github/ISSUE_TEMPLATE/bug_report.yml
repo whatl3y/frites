@@ -1,0 +1,48 @@
+name: Bug report
+description: Report something that isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to file a bug! Please fill out the details below.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps so we can reproduce the behavior.
+      placeholder: |
+        1. Run '...'
+        2. Point Claude Code / Codex at '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Output from `frites logs` or the failing command. This will be rendered as code.
+      render: shell
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: frites version
+      description: Output of `frites --version` (or the installed `@frites/cli` version).
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS + version, Node version, and host (Claude Code / Codex).
+      placeholder: "macOS 15.5, Node 22.11, Claude Code"
+    validations:
+      required: true
