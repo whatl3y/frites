@@ -18,7 +18,7 @@ Each package exposes its built entry via `"main": "./dist/index.js"`, `"types": 
 
 Each publishable package declares `"license": "Apache-2.0"` and carries its own `LICENSE` file so the npm tarball includes the full Apache License 2.0 text. The repository root also has the canonical `LICENSE` file for the source tree.
 
-Inter-package dependencies use `workspace:*` (e.g. `@frites/cli` depends on `@frites/agents`, `@frites/core`, `@frites/gateway`, `@frites/isolation`); pnpm rewrites these to real versions at publish time.
+Inter-package dependencies use `workspace:*` (e.g. `@frites/cli` depends on `@frites/agents`, `@frites/core`, `@frites/gateway`, `@frites/isolation`); `pnpm pack` rewrites these to the exact current version inside each tarball when a release is built (see [Cutting a release](#cutting-a-release)).
 
 ## Build artifacts
 
@@ -36,28 +36,38 @@ Versioning and publishing are managed with [Changesets](https://github.com/chang
 
 There are two paths; both end with all five packages published to npm at the same version.
 
+### How packages reach npm
+
+Publishing is done by [`scripts/publish.mjs`](../../scripts/publish.mjs) (the root `release` script), not `changeset publish`. For each public package, in dependency order, it:
+
+1. runs `pnpm pack`, which builds a tarball with `workspace:*` rewritten to the exact current version, then
+2. uploads that tarball with `npm publish`.
+
+The upload uses **npm rather than `pnpm publish`** on purpose: when 2FA is enforced on publish, `pnpm publish` can only obtain the one-time password interactively and aborts non-interactively with `ERR_PNPM_OTP_NON_INTERACTIVE`, whereas `npm publish` accepts a code via `--otp` and supports OIDC trusted publishing in CI. The script skips any version already on npm, so it is safe to re-run after a partial failure.
+
 ### Recommended: automated via CI
 
 1. **Describe the change.** In the PR that makes a user-facing change, run `pnpm changeset`, choose the bump (patch / minor / major), and write a one-line summary. Commit the generated file under `.changeset/`.
 2. **Merge to `main`.** The release workflow (`.github/workflows/release.yml`) sees the pending changeset and opens a **"Version Packages"** PR that bumps every package version and updates changelogs.
-3. **Merge the "Version Packages" PR.** With no changesets left, the same workflow builds and runs `changeset publish`, pushing all five packages to npm in dependency order and creating the git tag.
+3. **Merge the "Version Packages" PR.** With no changesets left, the same workflow builds and runs `pnpm release`, packing and `npm publish`ing all five packages in dependency order; `changesets/action` then creates the GitHub releases and git tags.
 
-The only one-time setup is an **`NPM_TOKEN`** repository secret — an npm automation token for an account with publish rights to the `@frites` scope. Node/pnpm versions and topological publish order are handled by the workflow.
+CI must authenticate to npm in a way that satisfies publish-time 2FA — which an interactive OTP can't provide in a workflow. The recommended setup is **OIDC trusted publishing**: register this repo as a trusted publisher for each `@frites/*` package on npmjs and grant the publish job `id-token: write`; npm then trusts the GitHub Actions identity with no stored secret. A stored **`NPM_TOKEN`** only works if that token is exempt from publish-time 2FA — a token that isn't exempt fails in CI with `EOTP`, since no code can be entered there.
 
 ### Manual: from a clean local checkout
 
 If you need to publish by hand, from a clean `main`:
 
 ```bash
-npm login                 # once; the account must own publish rights to @frites
+npm login                    # once; the account must have publish rights to @frites
 pnpm install
-pnpm version:packages     # applies pending changesets: bumps versions + changelogs
-pnpm release:dry          # optional: preview exactly what would be published
-pnpm release              # builds, then `changeset publish` to npm
+pnpm version:packages        # applies pending changesets: bumps versions + changelogs
+pnpm release:dry             # optional: pack + `npm publish --dry-run`, sends nothing
+NPM_OTP=123456 pnpm release  # builds, packs, npm-publishes; set NPM_OTP only if 2FA is enforced
+pnpm changeset tag           # tag the published versions (e.g. @frites/core@0.0.1)
 git push --follow-tags
 ```
 
-`pnpm release` always builds first, so `dist/` is fresh before anything is published. `pnpm release:dry` runs `pnpm -r publish --dry-run`, letting you confirm the package set, versions, and rewritten `workspace:*` ranges without sending anything.
+`pnpm release` always builds first, so `dist/` is fresh before anything is published. `NPM_OTP` is a current authenticator code, needed only when the account or `@frites` org enforces 2FA on publish; omit it otherwise. `pnpm release:dry` runs `node scripts/publish.mjs --dry-run`, packing each package and running `npm publish --dry-run` so you can confirm the package set, versions, and rewritten `workspace:*` ranges without sending anything.
 
 > The initial `0.0.1` release sets the lockstep baseline and its version fields were edited directly. Every release after that should go through `pnpm changeset` so versions and changelogs stay in sync.
 

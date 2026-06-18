@@ -23,8 +23,8 @@
     "wbench": "tsx eval/worktree-matrix.ts",
     "changeset": "changeset",
     "version:packages": "changeset version && pnpm install --lockfile-only",
-    "release": "pnpm build && changeset publish",
-    "release:dry": "pnpm build && pnpm -r publish --dry-run --no-git-checks"
+    "release": "pnpm build && node scripts/publish.mjs",
+    "release:dry": "pnpm build && node scripts/publish.mjs --dry-run"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",

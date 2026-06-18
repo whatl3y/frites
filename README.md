@@ -125,8 +125,8 @@ pnpm changeset      # pick the bump (patch / minor / major) + write a summary, t
 
 On merge to `main`, CI opens a **"Version Packages"** PR; merging that PR builds and publishes every
 package to npm in dependency order. To publish by hand from a clean checkout, run `pnpm version:packages`
-then `pnpm release` (`pnpm release:dry` previews exactly what would ship). The full flow — including the
-one-time `NPM_TOKEN` setup — is in
+then `pnpm release` (`pnpm release:dry` previews exactly what would ship). The full flow — how packages
+are packed and published, and the npm authentication it needs (OIDC in CI, or an OTP locally) — is in
 [Release & packaging](docs/development/release-and-packaging.md).
 
 ## License
