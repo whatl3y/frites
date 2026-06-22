@@ -148,10 +148,20 @@ export interface AnswerCouncilResult {
   childAnswers: string[];
 }
 
+// Backend-agnostic formatting contract for the final answer. Stated as a hard requirement, not a
+// hedge, because it has to steer models that don't default to Markdown on their own: Claude Code
+// emits rich Markdown unprompted, but `codex exec` (and likely future backends) defaults to flat
+// plain text, which reads badly for the large multi-part answers a synthesizer produces. The
+// trailing carve-outs keep a one-liner from being dressed up with needless headings. Used by both
+// the lone-child path and — prominently, not buried in the user-request block — the synthesizer.
 const ANSWER_FORMATTING_DIRECTIVE = [
-  "Format the final user-facing answer as readable GitHub-flavored Markdown when structure helps:",
-  "use short headings, bold emphasis, numbered lists, bullet lists, tables, and links where appropriate.",
-  "Do not force formatting for trivial one-line answers, and do not wrap the whole response in a code block.",
+  "FORMATTING (required, regardless of which model you are): write the final answer in",
+  "GitHub-flavored Markdown. Use Markdown structure to make a long or multi-part answer easy to",
+  "scan — short section headings, **bold** for key terms, bulleted or numbered lists, tables for",
+  "comparisons, fenced code blocks with a language tag for code, and links where they help.",
+  "Leading with a Markdown heading, list, or bold text still counts as starting with the answer.",
+  "Keep a one- or two-sentence reply plain — don't force headings or lists onto it — and never",
+  "wrap the whole response in a single code block.",
 ].join(" ");
 
 function withAnswerFormatting(prompt: string): string {
@@ -199,7 +209,10 @@ export async function runAnswerCouncil(
   );
 
   log("synthesizing");
-  const answer = await deps.complete(buildSynthesisPrompt(withAnswerFormatting(prompt), childAnswers), {
+  // Pass the clean prompt — buildSynthesisPrompt injects the formatting contract as a top-level
+  // instruction rather than appending it to the user request (where it read as part of the ask and
+  // codex ignored it).
+  const answer = await deps.complete(buildSynthesisPrompt(prompt, childAnswers), {
     role: "synth",
     index: -1,
   });
@@ -221,6 +234,8 @@ function buildSynthesisPrompt(question: string, answers: string[]): string {
     "preamble like \"Here's the answer\" or \"Let me…\", and do NOT inspect files — you already",
     "have the responses you need. Your reply is streamed verbatim to the user as the answer, so",
     "the very first characters you emit must be the answer itself.",
+    "",
+    ANSWER_FORMATTING_DIRECTIVE,
     "",
     `User request:\n${question}`,
     "",
