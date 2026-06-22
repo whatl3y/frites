@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { homedir, platform } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -319,6 +319,22 @@ function passesLevel(line: string, min?: number): boolean {
   return LEVEL_ORDER[lvl] >= min;
 }
 
+/**
+ * Epoch-ms of the gateway's most recent successful start, parsed from the last "listening on" line
+ * in the stdout log (each line is prefixed with an ISO timestamp). Returns undefined when there is
+ * no such line or its timestamp can't be parsed. Pure so it can be unit-tested.
+ */
+export function lastListeningMs(logContent: string): number | undefined {
+  const lines = logContent.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i]!.includes("listening on")) continue;
+    const ts = lines[i]!.match(/^\S+/)?.[0];
+    const ms = ts ? Date.parse(ts) : Number.NaN;
+    return Number.isNaN(ms) ? undefined : ms;
+  }
+  return undefined;
+}
+
 export async function runLogs(argv: string[]): Promise<void> {
   const args = parseLogsArgs(argv);
   const min = args.level ? LEVEL_ORDER[args.level] : undefined;
@@ -346,7 +362,17 @@ export async function runLogs(argv: string[]): Promise<void> {
   }
   const crashes = tailLines(err, 20);
   if (crashes.length) {
-    console.log("\n── gateway stderr (crashes) ──");
+    // gateway.err is append-only on crash, so an old entry lingers long after the gateway has
+    // recovered. If it predates the most recent successful start, mark it as a previous run rather
+    // than presenting a 16-hour-old crash as if it were current.
+    const started = existsSync(out) ? lastListeningMs(readFileSync(out, "utf8")) : undefined;
+    const errMs = statSync(err).mtimeMs;
+    const stale = started !== undefined && errMs <= started;
+    console.log(
+      stale
+        ? `\n── gateway stderr — from a previous run (gateway has run clean since ${new Date(started).toISOString()}) ──`
+        : "\n── gateway stderr (crashes) ──",
+    );
     for (const line of crashes) console.log(line);
   }
 
