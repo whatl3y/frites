@@ -1,6 +1,6 @@
 {
   "name": "@frites/gateway",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Transparent model-provider gateway for frites",
   "license": "Apache-2.0",
   "type": "module",
