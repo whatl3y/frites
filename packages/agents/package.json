@@ -1,6 +1,6 @@
 {
   "name": "@frites/agents",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Agent runner adapters and completion helpers for frites",
   "license": "Apache-2.0",
   "type": "module",

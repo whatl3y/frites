@@ -1,5 +1,15 @@
 # @frites/cli
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @frites/agents@0.0.3
+  - @frites/gateway@0.0.3
+  - @frites/core@0.0.3
+  - @frites/isolation@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes
