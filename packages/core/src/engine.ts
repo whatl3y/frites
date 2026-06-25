@@ -1,4 +1,4 @@
-import type { FritesConfig, ModelPricing } from "./config.js";
+import { MAX_DEFAULT_N, type FritesConfig, type ModelPricing } from "./config.js";
 import { type EngineEventHandler, noopEventHandler } from "./events.js";
 import { heuristicJudge } from "./judge.js";
 import { estimateCostUsd, pricingFor } from "./pricing.js";
@@ -12,7 +12,9 @@ import {
 } from "./synthesis.js";
 import type {
   AgentSpec,
+  BackendFailure,
   Candidate,
+  ChildKind,
   OracleCommands,
   OracleResult,
   ReconcileDecision,
@@ -59,8 +61,11 @@ export interface AgentRunContext {
 
 export interface AgentRunOutput {
   status: "succeeded" | "errored" | "timed-out";
+  actualKind?: ChildKind;
+  actualModel?: string;
   summary?: string;
   error?: string;
+  backendFailure?: BackendFailure;
   logPath?: string;
   costUsd?: number;
   /** Normalized, provider-comparable token usage (reasoning-inclusive output). See Candidate. */
@@ -307,11 +312,14 @@ async function maybeRunSynthesis(
           : "empty";
     const candidate: Candidate = {
       ...baseCandidate,
+      kind: out.actualKind ?? baseCandidate.kind,
+      model: out.actualModel ?? baseCandidate.model,
       diff,
       filesTouched,
       status,
       summary: out.summary,
       error: out.error,
+      backendFailure: out.backendFailure,
       logPath: out.logPath,
       costUsd: out.costUsd,
       inputTokens: out.inputTokens,
@@ -391,11 +399,14 @@ async function runOneAgent(
           : "empty";
     const candidate: Candidate = {
       ...base,
+      kind: out.actualKind ?? base.kind,
+      model: out.actualModel ?? base.model,
       diff,
       filesTouched,
       status,
       summary: out.summary,
       error: out.error,
+      backendFailure: out.backendFailure,
       logPath: out.logPath,
       costUsd: out.costUsd,
       inputTokens: out.inputTokens,
@@ -520,7 +531,7 @@ export function selectAgents(task: Task, config: FritesConfig): AgentSpec[] {
   if (task.agents && task.agents.length > 0) return task.agents;
   const base = config.defaultAgents;
   if (base.length === 0) throw new Error("No default agents configured");
-  const n = Math.max(1, Math.min(task.n ?? config.defaultN, 5));
+  const n = Math.max(1, Math.min(task.n ?? config.defaultN, MAX_DEFAULT_N));
   const out: AgentSpec[] = [];
   for (let i = 0; i < n; i++) {
     const template = base[i % base.length]!;

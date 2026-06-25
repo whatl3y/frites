@@ -145,6 +145,7 @@ export function toStructured(result: RunResult): Record<string, unknown> {
       costUsd: c.costUsd,
       oraclePassed: oracleById.get(c.agentId)?.passed ?? false,
       error: c.error,
+      backendFailure: c.backendFailure ?? null,
     })),
   };
 }

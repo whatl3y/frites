@@ -9,6 +9,7 @@ import {
   type Task,
   resolveConfig,
   runEngine,
+  selectAgents,
 } from "@frites/core";
 
 interface DiffEntry {
@@ -90,6 +91,35 @@ const BIG: DiffEntry = {
 };
 
 describe("runEngine reconciliation", () => {
+  it("round-robins default agents up to the defaultN guardrail", () => {
+    const config = resolveConfig({
+      defaultN: 10,
+      defaultAgents: [{ id: "A", kind: "claude-cli" }],
+    });
+    const agents = selectAgents({ instructions: "do it", repoPath: "/repo" }, config);
+    expect(agents).toHaveLength(10);
+    expect(agents.map((a) => a.id)).toEqual([
+      "A",
+      "A-2",
+      "A-3",
+      "A-4",
+      "A-5",
+      "A-6",
+      "A-7",
+      "A-8",
+      "A-9",
+      "A-10",
+    ]);
+  });
+
+  it("clamps implicit task fan-out above the guardrail", () => {
+    const config = resolveConfig({
+      defaultAgents: [{ id: "A", kind: "claude-cli" }],
+    });
+    const agents = selectAgents({ instructions: "do it", repoPath: "/repo", n: 99 }, config);
+    expect(agents).toHaveLength(10);
+  });
+
   it("picks the single oracle survivor", async () => {
     const { deps, task } = scenario({
       agents: [

@@ -168,4 +168,44 @@ describe("runAnswerCouncil", () => {
     expect(r.answer).toBe("only-answer");
     expect(synthCalled).toBe(false);
   });
+
+  it("falls back to a surviving child answer when synthesis fails", async () => {
+    const config = resolveConfig({
+      fanOutPolicy: "always",
+      defaultN: 2,
+      defaultAgents: [
+        { id: "a", kind: "claude-cli" },
+        { id: "b", kind: "codex-cli" },
+      ],
+    });
+    const complete = async (_p: string, ctx: { role: "child" | "synth"; index: number }) => {
+      if (ctx.role === "synth") throw new Error("Claude backend usage limit hit");
+      if (ctx.index === 0) throw new Error("Claude backend usage limit hit");
+      return "codex answer";
+    };
+
+    const r = await runAnswerCouncil("question", { complete, config });
+    expect(r.answer).toBe("codex answer");
+    expect(r.childAnswers[0]).toContain("usage limit");
+  });
+
+  it("returns an explicit failure when every child fails before synthesis", async () => {
+    const config = resolveConfig({
+      fanOutPolicy: "always",
+      defaultN: 2,
+      defaultAgents: [
+        { id: "a", kind: "claude-cli" },
+        { id: "b", kind: "codex-cli" },
+      ],
+    });
+    let synthCalled = false;
+    const complete = async (_p: string, ctx: { role: "child" | "synth"; index: number }) => {
+      if (ctx.role === "synth") synthCalled = true;
+      throw new Error(`backend limit ${ctx.index}`);
+    };
+
+    const r = await runAnswerCouncil("question", { complete, config });
+    expect(r.answer).toContain("all 2 agents failed");
+    expect(synthCalled).toBe(false);
+  });
 });

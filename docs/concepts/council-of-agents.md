@@ -4,7 +4,9 @@ frites answers a prompt with a **council** of independent child agents instead o
 
 ## Independent children
 
-When a turn fans out, frites runs N child agents concurrently. Each child receives the user prompt (optionally with a configured **framing**) and works on its own, with no visibility into the other children. Children are collected with `Promise.all`, so they run truly in parallel; if one fails, its failure is converted into a textual failure block and still handed to the synthesizer rather than aborting the whole council.
+When a turn fans out, frites runs N child agents concurrently. Each child receives the user prompt (optionally with a configured **framing**) and works on its own, with no visibility into the other children. Children are collected with `Promise.all`, so they run truly in parallel; if one fails, its failure is converted into a textual failure block rather than aborting the whole council. If every child fails, frites returns an explicit failure; if the synthesizer fails but a child produced usable output, frites falls back to that surviving child/proposal.
+
+Known backend/account failures also feed a provider suppression policy. For example, if Claude reports a five-hour usage limit, frites suppresses `claude-cli` until the backend reset time (or a conservative fallback TTL) and routes later gateway calls to another configured provider such as `codex-cli` when one is available.
 
 What a child produces depends on the turn:
 
@@ -34,7 +36,7 @@ The default `defaultAgents` is a two-agent mix, in this order:
 | 0 | `claude-cli` | `Make the smallest correct change that satisfies the task.` |
 | 1 | `codex-cli` | `Prefer a clean, well-structured solution.` |
 
-So by default the synthesizer (and child 0) is the Claude child, child 1 is the Codex child, and `defaultN` is 2. Each entry is a `{ kind: "claude-cli" | "codex-cli", model, framing }` spec; `defaultN` (1–5) controls how many children actually run, drawn round-robin from this list.
+So by default the synthesizer (and child 0) is the Claude child, child 1 is the Codex child, and `defaultN` is 2. Each entry is a `{ kind: "claude-cli" | "codex-cli", model, framing }` spec; `defaultN` (1–10) controls how many children actually run, drawn round-robin from this list.
 
 ## Prompt framing
 

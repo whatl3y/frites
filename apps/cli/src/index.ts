@@ -331,6 +331,7 @@ async function runTask(argv: string[]): Promise<void> {
     console.log(
       `  ${c.agentId}${c.synthesis ? " ⚗︎" : ""} [${c.kind}] ${c.status} — ${c.filesTouched.length} file(s), ${diffSize(c.diff)} Δlines`,
     );
+    if (c.backendFailure || c.error) console.log(`    error: ${c.error ?? c.backendFailure?.message}`);
   }
   const s = result.synthesis;
   if (s) {

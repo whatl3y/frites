@@ -16,7 +16,17 @@ import {
   runAnswerCouncil,
   stripInjectedContext,
 } from "@frites/core";
-import { type ChildEvent, estimateCostUsd, pricingFor, runCompletion } from "@frites/agents";
+import {
+  backendFailureFrom,
+  BackendSuppressionController,
+  describeSuppression,
+  type ChildEvent,
+  estimateCostUsd,
+  isRetryableWithAnotherProvider,
+  pricingFor,
+  runCompletion,
+} from "@frites/agents";
+import { candidateSpecs, preferredIndex } from "./agent-selection.js";
 import { type Logger, createLogger, resolveLogLevel } from "./logger.js";
 import { type ProgressSink, createProgressSink } from "./progress.js";
 
@@ -45,6 +55,7 @@ const PROGRESS_SIGNATURE = Buffer.from("frites-progress").toString("base64");
 
 // Process-level logging (startup, server errors); per-turn logging uses a child logger.
 const rootLog: Logger = createLogger({ level: resolveLogLevel(config.logLevel) });
+const backendHealth = new BackendSuppressionController();
 
 function shortId(): string {
   return randomUUID().replace(/-/g, "").slice(0, 8);
@@ -284,11 +295,6 @@ interface TurnResult {
   reason: string;
 }
 
-function specFor(ctx: { role: "child" | "synth"; index: number }, override?: AgentSpec | null) {
-  if (override) return override; // background turns pin a single child to the requested cheap model
-  const agents = config.defaultAgents;
-  return ctx.role === "synth" ? agents[0] : agents[ctx.index % agents.length];
-}
 
 async function runAgentTurn(
   transcript: string,
@@ -334,10 +340,28 @@ async function runAgentTurn(
     if (!heuristic.fanOut) {
       decision = heuristic;
     } else {
-      emit("judging whether to consult multiple agents…");
-      const classify = (q: string) =>
-        runCompletion("claude-cli", q, { config, model: "haiku", passApiKeys, timeoutMs: 60_000 }).then(track);
-      decision = await llmJudgeFanOut(decisionBasis, classify, config);
+      const judgeSuppression = backendHealth.isSuppressed("claude-cli");
+      if (judgeSuppression) {
+        emit(`fan-out judge skipped — ${describeSuppression(judgeSuppression)}`);
+        decision = heuristic;
+      } else {
+        emit("judging whether to consult multiple agents…");
+        const classify = async (q: string) => {
+          try {
+            return await runCompletion("claude-cli", q, {
+              config,
+              model: "haiku",
+              passApiKeys,
+              timeoutMs: 60_000,
+            }).then(track);
+          } catch (e) {
+            const suppression = backendHealth.recordFailure(backendFailureFrom(e));
+            if (suppression) emit(`↯ ${describeSuppression(suppression)}`);
+            throw e;
+          }
+        };
+        decision = await llmJudgeFanOut(decisionBasis, classify, config);
+      }
     }
   } else {
     decision = decideFanOut(decisionBasis, config);
@@ -347,149 +371,217 @@ async function runAgentTurn(
   // failure surface in BOTH the server log and the client progress stream. This is where the
   // per-agent visibility comes from; the final-answer producer streams into the answer block.
   const complete = async (p: string, ctx: { role: "child" | "synth"; index: number }) => {
-    const spec = specFor(ctx, bgSpec);
-    const who =
-      ctx.role === "synth" ? "synthesizer" : `agent ${ctx.index + 1} (${childLabel(spec)})`;
-    const tag = ctx.role === "synth" ? "synth" : String(ctx.index + 1);
-    const startedAt = Date.now();
-    // ONLY the synthesizer live-streams into the answer block. It's handed the children's answers
-    // (no reason to read files) and steered to emit answer-only, so its text deltas == its final
-    // `result` with no preamble. A lone child (no fan-out) can narrate/read before answering, whose
-    // pre-answer deltas aren't in claude's `result`; we route its text to telemetry/interleaved
-    // instead and emit its clean `result` chunked at turn end (anthropicStream/responsesStream).
-    const isFinalAnswer = isAnswerTurn && !!io.answer && ctx.role === "synth";
-    if (ctx.role !== "synth") emit(`→ ${who} working…`, { agent: who });
+    const agents = candidateSpecs(config.defaultAgents, bgSpec);
+    const basePreferred = preferredIndex(ctx, agents);
+    const attempted = new Set<AgentSpec["kind"]>();
+    let lastError: unknown;
 
-    // Track this agent in the live roster the heartbeat reads, so a long silent stretch renders
-    // "waiting on agent 1 (claude…): running Bash, 40s ago" instead of a bare elapsed tick. Keyed
-    // by `who` (unique per child/synth within a turn); dropped when the call settles (finally).
-    // `touch()` with no arg refreshes the timestamp but keeps the last state (usage pings).
-    const touch = (state?: string): void => {
-      const prev = io.activeAgents.get(who);
-      io.activeAgents.set(who, {
-        who,
-        state: state ?? prev?.state ?? "working",
-        startedAt,
-        updatedAt: Date.now(),
+    while (true) {
+      const spec = backendHealth.selectAgent(agents, {
+        preferredIndex: basePreferred,
+        attempted,
       });
-    };
-    touch("starting");
+      if (!spec) {
+        if (lastError) throw lastError;
+        const suppressed = agents.find((a) => backendHealth.isSuppressed(a));
+        if (suppressed) throw backendHealth.suppressedError(suppressed.kind);
+        throw new Error("No default agents configured");
+      }
 
-    let chars = 0;
-    let lastOut = 0;
-    let lastIn = 0;
-    let lastCacheRead = 0;
-    let lastTick = 0;
-    let lineBuf = "";
-    const flushLines = (final = false): void => {
-      let idx: number;
-      while ((idx = lineBuf.indexOf("\n")) >= 0) {
-        const ln = lineBuf.slice(0, idx);
-        lineBuf = lineBuf.slice(idx + 1);
-        emitDetail(`[${tag}] ${ln}`);
-      }
-      if (final && lineBuf.trim()) {
-        emitDetail(`[${tag}] ${lineBuf}`);
-        lineBuf = "";
-      }
-    };
-    const onEvent = (ev: ChildEvent): void => {
-      if (ev.type === "usage") {
-        if (typeof ev.outputTokens === "number") lastOut = ev.outputTokens;
-        if (typeof ev.inputTokens === "number") lastIn = ev.inputTokens;
-        if (typeof ev.cacheReadTokens === "number") lastCacheRead = ev.cacheReadTokens;
-        touch(); // refresh liveness; usage pings carry no new state of their own
-        return;
-      }
-      if (ev.type === "start") {
-        touch("working"); // child CLI initialized
-        return;
-      }
-      if (ev.type === "tool") {
-        touch(`running ${ev.name}`); // stays until the next event — the "Ns ago" shows how long
-        emitDetail(`→ ${who} used ${ev.name}`, { agent: who, tool: ev.name });
-        return;
-      }
-      if (ev.type === "reasoning") {
-        touch("thinking"); // tracked for liveness; reasoning text stays out of the panel for now
-        return;
-      }
-      if (ev.type !== "text") return;
-      chars += ev.delta.length;
-      if (isFinalAnswer) {
-        io.answer?.push(ev.delta); // live answer stream (raw delta — no forced newline)
-        return;
-      }
-      touch("responding");
-      // Non-final child: in interleaved mode surface its output (line-buffered + agent-prefixed);
-      // in either mode refresh a throttled per-agent token/elapsed counter.
-      if (io.detail === "interleaved" && io.progress) {
-        lineBuf += ev.delta;
-        flushLines();
-      }
-      if (io.progress) {
-        const now = Date.now();
-        if (now - lastTick >= TELEMETRY_MS) {
-          lastTick = now;
-          const estTok = lastOut || Math.max(1, Math.ceil(chars / 4));
-          // claude reports input at message_start (so show in→out live); codex only at turn end.
-          const inPart = lastIn ? `${fmtTok(lastIn)} in → ` : "";
-          emitDetail(`· ${who} ${inPart}~${estTok} out · ${secs(now - startedAt)}`, { agent: who });
-        }
-      }
-    };
-
-    try {
-      const r = await runCompletion(spec?.kind ?? "claude-cli", p, {
-        config,
-        model: spec?.model,
-        passApiKeys,
-        timeoutMs: config.perChildTimeoutMs,
-        cwd, // run the child in the caller's repo so it can actually read it
-        onEvent,
-      });
-      if (io.detail === "interleaved" && !isFinalAnswer) flushLines(true);
-      const ms = Date.now() - startedAt;
-      // Normalized, provider-comparable usage: total input (with the cached/reused portion called
-      // out) → output, plus cost. claude self-reports cost authoritatively; codex reports none, so
-      // we estimate from config.pricing when available (marked `~`) instead of leaving it blank —
-      // which previously made codex look free next to claude. See packages/agents/src/pricing.ts.
-      const inTok = r.inputTokens ?? lastIn ?? 0;
-      const cachedTok = r.cacheReadTokens ?? lastCacheRead ?? 0;
-      const outTok = r.outputTokens ?? lastOut ?? 0;
-      const reportedUsd = r.costUsd;
-      const estUsd =
-        reportedUsd == null
-          ? estimateCostUsd(pricingFor(spec?.model, config.pricing), r)
+      const nominal = agents[basePreferred];
+      const nominalSuppression =
+        nominal && nominal.kind !== spec.kind && !attempted.has(nominal.kind)
+          ? backendHealth.isSuppressed(nominal)
           : undefined;
-      const usd = reportedUsd ?? estUsd;
-      const usageStr = fmtUsage(inTok, cachedTok, outTok);
-      const costStr =
-        usd != null ? ` · ${estUsd != null ? "~" : ""}$${usd.toFixed(4)}` : " · cost n/a";
-      emit(
-        ctx.role === "synth"
-          ? `✓ synthesis complete (${secs(ms)} · ${usageStr}${costStr})`
-          : `✓ ${who} responded (${secs(ms)} · ${usageStr}${costStr})`,
-        {
+      if (nominalSuppression) {
+        emit(`↷ ${childLabel(nominal)} suppressed; using ${childLabel(spec)}`, {
+          suppressedProvider: nominal.kind,
+          replacementProvider: spec.kind,
+          until: new Date(nominalSuppression.until).toISOString(),
+        });
+      }
+
+      attempted.add(spec.kind);
+      const who =
+        ctx.role === "synth" ? `synthesizer (${childLabel(spec)})` : `agent ${ctx.index + 1} (${childLabel(spec)})`;
+      const tag = ctx.role === "synth" ? "synth" : String(ctx.index + 1);
+      const startedAt = Date.now();
+      // ONLY the synthesizer live-streams into the answer block. It's handed the children's answers
+      // (no reason to read files) and steered to emit answer-only, so its text deltas == its final
+      // `result` with no preamble. A lone child (no fan-out) can narrate/read before answering, whose
+      // pre-answer deltas aren't in claude's `result`; we route its text to telemetry/interleaved
+      // instead and emit its clean `result` chunked at turn end (anthropicStream/responsesStream).
+      const isFinalAnswer = isAnswerTurn && !!io.answer && ctx.role === "synth";
+      if (ctx.role !== "synth") emit(`→ ${who} working…`, { agent: who });
+
+      // Track this agent in the live roster the heartbeat reads, so a long silent stretch renders
+      // "waiting on agent 1 (claude…): running Bash, 40s ago" instead of a bare elapsed tick. Keyed
+      // by `who` (unique per child/synth within a turn); dropped when the call settles (finally).
+      // `touch()` with no arg refreshes the timestamp but keeps the last state (usage pings).
+      const touch = (state?: string): void => {
+        const prev = io.activeAgents.get(who);
+        io.activeAgents.set(who, {
+          who,
+          state: state ?? prev?.state ?? "working",
+          startedAt,
+          updatedAt: Date.now(),
+        });
+      };
+      touch("starting");
+
+      let chars = 0;
+      let finalAnswerChars = 0;
+      let lastOut = 0;
+      let lastIn = 0;
+      let lastCacheRead = 0;
+      let lastTick = 0;
+      let lineBuf = "";
+      const flushLines = (final = false): void => {
+        let idx: number;
+        while ((idx = lineBuf.indexOf("\n")) >= 0) {
+          const ln = lineBuf.slice(0, idx);
+          lineBuf = lineBuf.slice(idx + 1);
+          emitDetail(`[${tag}] ${ln}`);
+        }
+        if (final && lineBuf.trim()) {
+          emitDetail(`[${tag}] ${lineBuf}`);
+          lineBuf = "";
+        }
+      };
+      const onEvent = (ev: ChildEvent): void => {
+        if (ev.type === "usage") {
+          if (typeof ev.outputTokens === "number") lastOut = ev.outputTokens;
+          if (typeof ev.inputTokens === "number") lastIn = ev.inputTokens;
+          if (typeof ev.cacheReadTokens === "number") lastCacheRead = ev.cacheReadTokens;
+          touch(); // refresh liveness; usage pings carry no new state of their own
+          return;
+        }
+        if (ev.type === "start") {
+          touch("working"); // child CLI initialized
+          return;
+        }
+        if (ev.type === "tool") {
+          touch(`running ${ev.name}`); // stays until the next event — the "Ns ago" shows how long
+          emitDetail(`→ ${who} used ${ev.name}`, { agent: who, tool: ev.name });
+          return;
+        }
+        if (ev.type === "reasoning") {
+          touch("thinking"); // tracked for liveness; reasoning text stays out of the panel for now
+          return;
+        }
+        if (ev.type !== "text") return;
+        chars += ev.delta.length;
+        if (isFinalAnswer) {
+          finalAnswerChars += ev.delta.length;
+          io.answer?.push(ev.delta); // live answer stream (raw delta — no forced newline)
+          return;
+        }
+        touch("responding");
+        // Non-final child: in interleaved mode surface its output (line-buffered + agent-prefixed);
+        // in either mode refresh a throttled per-agent token/elapsed counter.
+        if (io.detail === "interleaved" && io.progress) {
+          lineBuf += ev.delta;
+          flushLines();
+        }
+        if (io.progress) {
+          const now = Date.now();
+          if (now - lastTick >= TELEMETRY_MS) {
+            lastTick = now;
+            const estTok = lastOut || Math.max(1, Math.ceil(chars / 4));
+            // claude reports input at message_start (so show in→out live); codex only at turn end.
+            const inPart = lastIn ? `${fmtTok(lastIn)} in → ` : "";
+            emitDetail(`· ${who} ${inPart}~${estTok} out · ${secs(now - startedAt)}`, { agent: who });
+          }
+        }
+      };
+
+      try {
+        const r = await runCompletion(spec.kind, p, {
+          config,
+          model: spec.model,
+          passApiKeys,
+          timeoutMs: config.perChildTimeoutMs,
+          cwd, // run the child in the caller's repo so it can actually read it
+          onEvent,
+        });
+        if (io.detail === "interleaved" && !isFinalAnswer) flushLines(true);
+        const ms = Date.now() - startedAt;
+        // Normalized, provider-comparable usage: total input (with the cached/reused portion called
+        // out) → output, plus cost. claude self-reports cost authoritatively; codex reports none, so
+        // we estimate from config.pricing when available (marked `~`) instead of leaving it blank —
+        // which previously made codex look free next to claude. See packages/agents/src/pricing.ts.
+        const inTok = r.inputTokens ?? lastIn ?? 0;
+        const cachedTok = r.cacheReadTokens ?? lastCacheRead ?? 0;
+        const outTok = r.outputTokens ?? lastOut ?? 0;
+        const reportedUsd = r.costUsd;
+        const estUsd =
+          reportedUsd == null
+            ? estimateCostUsd(pricingFor(spec.model, config.pricing), r)
+            : undefined;
+        const usd = reportedUsd ?? estUsd;
+        const usageStr = fmtUsage(inTok, cachedTok, outTok);
+        const costStr =
+          usd != null ? ` · ${estUsd != null ? "~" : ""}$${usd.toFixed(4)}` : " · cost n/a";
+        emit(
+          ctx.role === "synth"
+            ? `✓ synthesis complete (${secs(ms)} · ${usageStr}${costStr})`
+            : `✓ ${who} responded (${secs(ms)} · ${usageStr}${costStr})`,
+          {
+            agent: who,
+            ms,
+            inputTokens: inTok || undefined,
+            cachedTokens: cachedTok || undefined,
+            outputTokens: outTok || undefined,
+            tokens: outTok || undefined, // back-compat: prior field was output tokens
+            usd,
+            costEstimated: estUsd != null || undefined,
+          },
+        );
+        // Roll the EFFECTIVE cost (reported or estimated) into turn spend so the total isn't blind
+        // to codex's contribution.
+        return track({ ...r, costUsd: usd });
+      } catch (e) {
+        lastError = e;
+        const ms = Date.now() - startedAt;
+        const failure = backendFailureFrom(e);
+        const suppression = backendHealth.recordFailure(failure);
+        emit(`✗ ${who} failed (${secs(ms)}): ${errMsg(e)}`, {
           agent: who,
           ms,
-          inputTokens: inTok || undefined,
-          cachedTokens: cachedTok || undefined,
-          outputTokens: outTok || undefined,
-          tokens: outTok || undefined, // back-compat: prior field was output tokens
-          usd,
-          costEstimated: estUsd != null || undefined,
-        },
-      );
-      // Roll the EFFECTIVE cost (reported or estimated) into turn spend so the total isn't blind
-      // to codex's contribution.
-      return track({ ...r, costUsd: usd });
-    } catch (e) {
-      const ms = Date.now() - startedAt;
-      emit(`✗ ${who} failed (${secs(ms)}): ${errMsg(e)}`, { agent: who, ms });
-      throw e;
-    } finally {
-      io.activeAgents.delete(who); // drop from the live roster once settled (success or failure)
+          backendFailure: failure?.kind,
+          provider: failure?.provider,
+          statusCode: failure?.statusCode,
+          limitType: failure?.limitType,
+          resetAt: failure?.resetAtIso,
+        });
+        if (suppression) {
+          emit(`↯ ${describeSuppression(suppression)}`, {
+            provider: suppression.provider,
+            until: new Date(suppression.until).toISOString(),
+            backendFailure: suppression.failure.kind,
+          });
+        }
+
+        const retrySpec = backendHealth.selectAgent(agents, {
+          preferredIndex: basePreferred,
+          attempted,
+        });
+        const canRetry =
+          isRetryableWithAnotherProvider(failure) &&
+          !!retrySpec &&
+          !(isFinalAnswer && finalAnswerChars > 0);
+        if (canRetry) {
+          emit(`↻ retrying with ${childLabel(retrySpec)}`, {
+            previousProvider: spec.kind,
+            retryProvider: retrySpec.kind,
+            backendFailure: failure?.kind,
+          });
+          continue;
+        }
+        throw e;
+      } finally {
+        io.activeAgents.delete(who); // drop from the live roster once settled (success or failure)
+      }
     }
   };
 

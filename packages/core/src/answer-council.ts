@@ -168,6 +168,24 @@ function withAnswerFormatting(prompt: string): string {
   return `${prompt}\n\n${ANSWER_FORMATTING_DIRECTIVE}`;
 }
 
+function childFailure(index: number, error: unknown): string {
+  return `(agent ${index + 1} failed: ${error instanceof Error ? error.message : String(error)})`;
+}
+
+function isChildFailure(text: string): boolean {
+  return /^\(agent \d+ failed:/.test(text.trim());
+}
+
+function allChildrenFailedAnswer(childAnswers: string[], synthError?: unknown): string {
+  const detail = childAnswers
+    .map((a, i) => `- agent ${i + 1}: ${a.replace(/^\(agent \d+ failed:\s*/, "").replace(/\)$/, "")}`)
+    .join("\n");
+  const synth = synthError
+    ? ` Synthesis also failed: ${synthError instanceof Error ? synthError.message : String(synthError)}`
+    : "";
+  return `frites could not complete this turn because all ${childAnswers.length} agents failed before producing a usable answer.${synth}\n\n${detail}`;
+}
+
 /**
  * The transparent-proxy brain for answer/reasoning turns: optionally fan out to N
  * children (diverse framings), then synthesize one vetted answer. No worktrees/tools —
@@ -201,21 +219,34 @@ export async function runAnswerCouncil(
       );
       return deps
         .complete(framed, { role: "child", index: i })
-        .catch(
-          (e) =>
-            `(agent ${i + 1} failed: ${e instanceof Error ? e.message : String(e)})`,
-        );
+        .catch((e) => childFailure(i, e));
     }),
   );
+
+  if (childAnswers.every(isChildFailure)) {
+    log("all agents failed before synthesis");
+    return {
+      answer: allChildrenFailedAnswer(childAnswers),
+      fannedOut: true,
+      decision,
+      childAnswers,
+    };
+  }
 
   log("synthesizing");
   // Pass the clean prompt — buildSynthesisPrompt injects the formatting contract as a top-level
   // instruction rather than appending it to the user request (where it read as part of the ask and
   // codex ignored it).
-  const answer = await deps.complete(buildSynthesisPrompt(prompt, childAnswers), {
-    role: "synth",
-    index: -1,
-  });
+  let answer: string;
+  try {
+    answer = await deps.complete(buildSynthesisPrompt(prompt, childAnswers), {
+      role: "synth",
+      index: -1,
+    });
+  } catch (e) {
+    log(`synthesis failed; falling back to a surviving agent (${e instanceof Error ? e.message : String(e)})`);
+    answer = childAnswers.find((a) => !isChildFailure(a)) ?? allChildrenFailedAnswer(childAnswers, e);
+  }
   return { answer, fannedOut: true, decision, childAnswers };
 }
 

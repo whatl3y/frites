@@ -10,6 +10,8 @@ import type {
   FritesConfig,
   RunAgentFn,
 } from "@frites/core";
+import { classifyBackendFailure, formatBackendFailure } from "./backend-errors.js";
+import { BackendSuppressionController, describeSuppression } from "./backend-policy.js";
 import { assertDepth, buildChildEnv, currentDepth } from "./env-sandbox.js";
 import { startIdleTimeout } from "./timeout.js";
 
@@ -68,6 +70,11 @@ function spawnAndStream(
 
     const acc: RunAccumulator = {};
     const logChunks: string[] = [];
+    // Kept apart from logChunks (which interleaves both for the on-disk log): backend-failure
+    // classification must mine the answer body on stdout only for STRUCTURED error events, and run
+    // its free-text fallback over stderr alone — never over the agent's stdout answer prose.
+    const stdoutChunks: string[] = [];
+    const stderrChunks: string[] = [];
     let killedReason: "timeout" | "abort" | null = null;
     let buf = "";
 
@@ -109,6 +116,7 @@ function spawnAndStream(
       idle.touch();
       const s = b.toString();
       logChunks.push(s);
+      stdoutChunks.push(s);
       buf += s;
       let idx: number;
       while ((idx = buf.indexOf("\n")) >= 0) {
@@ -125,7 +133,9 @@ function spawnAndStream(
     });
     child.stderr?.on("data", (b: Buffer) => {
       idle.touch();
-      logChunks.push(b.toString());
+      const s = b.toString();
+      logChunks.push(s);
+      stderrChunks.push(s);
     });
 
     const writeLog = () => {
@@ -139,7 +149,14 @@ function spawnAndStream(
     child.on("error", (err) => {
       cleanup();
       writeLog();
-      resolve({ status: "errored", error: String(err), logPath, ...acc });
+      const backendFailure = classifyBackendFailure(String(err), def.kind);
+      resolve({
+        status: "errored",
+        error: backendFailure ? formatBackendFailure(backendFailure) : String(err),
+        backendFailure,
+        logPath,
+        ...acc,
+      });
     });
 
     child.on("close", (code) => {
@@ -151,6 +168,14 @@ function spawnAndStream(
           : code === 0
             ? "succeeded"
             : "errored";
+      const backendFailure =
+        status === "errored"
+          ? classifyBackendFailure(
+              { stdout: stdoutChunks.join(""), stderr: stderrChunks.join("") },
+              def.kind,
+              code,
+            )
+          : undefined;
       resolve({
         status,
         summary: acc.summary,
@@ -163,8 +188,11 @@ function spawnAndStream(
           status === "errored"
             ? killedReason === "abort"
               ? "aborted"
-              : `exit code ${code}`
+              : backendFailure
+                ? formatBackendFailure(backendFailure)
+                : `exit code ${code}`
             : undefined,
+        backendFailure,
         logPath,
       });
     });
@@ -180,10 +208,36 @@ export interface MakeRunAgentOptions {
 /** Build the RunAgentFn the engine calls, wired with the configured CLI backends. */
 export function makeRunAgent(opts: MakeRunAgentOptions): RunAgentFn {
   const byKind = new Map(opts.runners.map((r) => [r.kind, r]));
+  const backendHealth = new BackendSuppressionController();
   return async (spec: AgentSpec, ctx: AgentRunContext): Promise<AgentRunOutput> => {
-    const def = byKind.get(spec.kind);
+    const suppressed = backendHealth.isSuppressed(spec);
+    let actualSpec = spec;
+    if (suppressed) {
+      const replacement = backendHealth.selectAgent(
+        opts.config.defaultAgents.filter((a) => byKind.has(a.kind)),
+        { attempted: new Set([spec.kind]) },
+      );
+      if (replacement) {
+        ctx.onProgress(
+          `${describeSuppression(suppressed)}; using ${replacement.kind}${
+            replacement.model ? `:${replacement.model}` : ""
+          }`,
+        );
+        actualSpec = { ...replacement, id: spec.id };
+      } else {
+        return {
+          status: "errored",
+          actualKind: spec.kind,
+          actualModel: spec.model,
+          error: describeSuppression(suppressed),
+          backendFailure: suppressed.failure,
+        };
+      }
+    }
+
+    const def = byKind.get(actualSpec.kind);
     if (!def) {
-      return { status: "errored", error: `No runner registered for kind '${spec.kind}'` };
+      return { status: "errored", error: `No runner registered for kind '${actualSpec.kind}'` };
     }
     const depth = currentDepth();
     assertDepth(depth, opts.config.maxDepth);
@@ -195,21 +249,27 @@ export function makeRunAgent(opts: MakeRunAgentOptions): RunAgentFn {
     // Apply config defaults so per-child budget/timeout actually take effect even
     // when a spec omits them.
     const effSpec: AgentSpec = {
-      ...spec,
-      maxBudgetUsd: spec.maxBudgetUsd ?? opts.config.perChildBudgetUsd,
-      timeoutMs: spec.timeoutMs ?? opts.config.perChildTimeoutMs,
-      hardTimeoutMs: spec.hardTimeoutMs ?? opts.config.perChildHardTimeoutMs,
+      ...actualSpec,
+      maxBudgetUsd: actualSpec.maxBudgetUsd ?? opts.config.perChildBudgetUsd,
+      timeoutMs: actualSpec.timeoutMs ?? opts.config.perChildTimeoutMs,
+      hardTimeoutMs: actualSpec.hardTimeoutMs ?? opts.config.perChildHardTimeoutMs,
       // Codex reasoning depth: per-agent override wins, else the config default ("high"). Only
       // codex reads this (see codex.ts); claude children ignore it.
       reasoningEffort:
-        spec.kind === "codex-cli"
-          ? (spec.reasoningEffort ?? opts.config.codexReasoningEffort)
-          : spec.reasoningEffort,
+        actualSpec.kind === "codex-cli"
+          ? (actualSpec.reasoningEffort ?? opts.config.codexReasoningEffort)
+          : actualSpec.reasoningEffort,
     };
     const timeoutMs = effSpec.timeoutMs ?? opts.config.perChildTimeoutMs;
     const hardTimeoutMs = effSpec.hardTimeoutMs ?? opts.config.perChildHardTimeoutMs;
     const argv = def.buildArgv(effSpec, ctx);
     const logPath = join(tmpdir(), `frites-${spec.id}-${Date.now()}.log`);
-    return spawnAndStream(def, argv, ctx, env, timeoutMs, hardTimeoutMs, logPath);
+    const out = await spawnAndStream(def, argv, ctx, env, timeoutMs, hardTimeoutMs, logPath);
+    if (out.backendFailure) backendHealth.recordFailure(out.backendFailure);
+    return {
+      ...out,
+      actualKind: actualSpec.kind,
+      actualModel: actualSpec.model,
+    };
   };
 }

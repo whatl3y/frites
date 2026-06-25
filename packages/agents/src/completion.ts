@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import type { ChildKind, FritesConfig } from "@frites/core";
+import { classifyBackendFailure, ModelBackendError } from "./backend-errors.js";
 import { assertDepth, buildChildEnv, currentDepth } from "./env-sandbox.js";
 import { startIdleTimeout } from "./timeout.js";
 
@@ -305,6 +306,7 @@ export async function runCompletion(
       ];
       if (opts.model) args.push("--model", opts.model);
       const raw = await runStreaming(
+        "claude-cli",
         "claude",
         args,
         cwd,
@@ -351,6 +353,7 @@ export async function runCompletion(
       if (opts.model) args.push("-m", opts.model);
       args.push("-"); // read prompt from stdin (piped below), not argv → avoids E2BIG
       const raw = await runStreaming(
+        "codex-cli",
         "codex",
         args,
         cwd,
@@ -388,6 +391,7 @@ export async function runCompletion(
  * non-resetting absolute ceiling (off when undefined).
  */
 function runStreaming(
+  provider: ChildKind,
   cmd: string,
   args: string[],
   cwd: string,
@@ -481,7 +485,15 @@ function runStreaming(
         }
       }
       if (code === 0) resolve(out);
-      else reject(new Error(`${cmd} exited ${code}: ${err.slice(-300)}`));
+      else {
+        const backendFailure = classifyBackendFailure({ stdout: out, stderr: err }, provider, code);
+        const detail = err.slice(-300) || out.slice(-300) || `exit code ${code}`;
+        reject(
+          backendFailure
+            ? new ModelBackendError(backendFailure, detail)
+            : new Error(`${cmd} exited ${code}: ${detail}`),
+        );
+      }
     });
   });
 }

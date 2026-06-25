@@ -1,6 +1,8 @@
 export * from "./env-sandbox.js";
 export * from "./runner.js";
 export * from "./completion.js";
+export * from "./backend-errors.js";
+export * from "./backend-policy.js";
 export * from "./pricing.js";
 export * from "./timeout.js";
 export { claudeRunner } from "./claude.js";

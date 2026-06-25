@@ -24,7 +24,7 @@ The server registers two tools (`apps/mcp/src/index.ts`):
 
 Dispatches a coding task to multiple full agents (claude/codex) in isolated git worktrees, filters them with the repo's tests, and returns one vetted diff plus a comparison. It is long-running (minutes).
 
-Inputs: `task` (what to implement or fix), `repoPath` (absolute path to the target git repo), optional `n` (1–5 agents), optional `agents` (comma list of kinds, e.g. `claude,codex`), optional `acceptanceCriteria`, and optional `baseRef` (git ref to branch from, default HEAD).
+Inputs: `task` (what to implement or fix), `repoPath` (absolute path to the target git repo), optional `n` (1–10 agents), optional `agents` (comma list of kinds, e.g. `claude,codex`), optional `acceptanceCriteria`, and optional `baseRef` (git ref to branch from, default HEAD).
 
 It loads config from `repoPath`, builds the engine dependencies, runs the engine, and forwards engine events as MCP `notifications/progress` (when the client supplied a `progressToken`). On completion it persists the run under `<repoPath>/.frites/runs/<runId>/` (one `.diff` per candidate plus a `result.json`) and returns a formatted comparison text, a `resource_link` to each candidate diff, and structured content. On failure it returns an error result with the message.
 

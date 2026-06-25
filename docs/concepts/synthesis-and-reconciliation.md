@@ -20,7 +20,7 @@ The deep internals of how the engine drives these stages (event model, failure m
 
 For plain answer turns, children run independently and concurrently; their answers are sent, alongside the original question, to a synthesizer that produces one vetted answer. The synthesizer prompt tells the model to keep what the children agree on, adjudicate disagreements, drop unsupported or wrong claims, avoid mentioning that multiple responses existed, strip runtime artifacts (sandbox/working-directory complaints), and output only the final answer text.
 
-There is no explicit voting algorithm, confidence score, source weighting, or external verifier in this path. The final answer is an LLM-mediated synthesis over raw child responses. A failing child is converted into a textual failure block rather than aborting the council, so the synthesizer always receives a complete input set. This council brain lives in `packages/core/src/answer-council.ts`.
+There is no explicit voting algorithm, confidence score, source weighting, or external verifier in this path. The final answer is normally an LLM-mediated synthesis over raw child responses. A failing child is converted into a textual failure block rather than aborting the council; if every child fails, frites returns an explicit failure instead of spending a synthesizer call. If synthesis itself fails after at least one usable child response, frites falls back to a surviving child answer. This council brain lives in `packages/core/src/answer-council.ts`.
 
 ## Gateway tool/action selection (no blending)
 

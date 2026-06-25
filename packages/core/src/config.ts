@@ -64,9 +64,12 @@ export const ModelPricingSchema = z.object({
 
 export type ModelPricing = z.infer<typeof ModelPricingSchema>;
 
+/** Hard guardrail for implicit/default fan-out. Explicit agent lists may still be longer. */
+export const MAX_DEFAULT_N = 10;
+
 export const FritesConfigSchema = z.object({
-  /** Default number of children when a task doesn't specify. Capped at 5 in v1. */
-  defaultN: z.number().int().min(1).max(5).default(2),
+  /** Default number of children when a task doesn't specify. Capped as a cost/concurrency guardrail. */
+  defaultN: z.number().int().min(1).max(MAX_DEFAULT_N).default(2),
   defaultAgents: z.array(AgentSpecSchema).default([
     {
       id: "claude-1",

@@ -48,6 +48,11 @@ describe("config helpers", () => {
     expect(resolveConfig({ progressDetail: "interleaved" }).progressDetail).toBe("interleaved");
     expect(() => resolveConfig({ progressDetail: "nonsense" })).toThrow();
   });
+
+  it("allows defaultN up to the shared fan-out guardrail", () => {
+    expect(resolveConfig({ defaultN: 10 }).defaultN).toBe(10);
+    expect(() => resolveConfig({ defaultN: 11 })).toThrow();
+  });
 });
 
 describe("loadConfig layering", () => {

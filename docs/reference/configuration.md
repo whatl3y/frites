@@ -25,7 +25,7 @@ file paths and write target with `frites config path`. See the
 |---|---|---|---|
 | `fanOutPolicy` | `"always" \| "auto" \| "necessary" \| "never"` | `"auto"` | How aggressively the gateway fans out to a council: `always` on every main turn; `auto` decides per-prompt; `necessary` only for clearly hard/contested prompts; `never` runs a single agent. See [Fan-out policy](../concepts/fan-out-policy.md). |
 | `fanOutScope` | `"first-turn" \| "per-turn"` | `"first-turn"` | Which turns within one request may fan out. `first-turn` fans out only on the substantive request turn, then runs a single agent through the mechanical tool-loop continuation turns; `per-turn` fans out on every allowed turn. See [Fan-out scope](../concepts/fan-out-scope.md). |
-| `defaultN` | integer `1`–`5` | `2` | Default number of children when a task doesn't specify. Capped at 5 in v1. |
+| `defaultN` | integer `1`–`10` | `2` | Default number of children when a task doesn't specify. Capped at 10 as a cost/concurrency guardrail. |
 | `defaultAgents` | array of `AgentSpec` | claude-1 + codex-1 (see below) | Which agents and models to consult. Order is load-bearing; see [the slot-0 note](#slot-0-is-the-synthesizer-and-child-0). |
 
 The default `defaultAgents`:

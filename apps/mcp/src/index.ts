@@ -2,7 +2,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { type Task, loadConfig, runEngine } from "@frites/core";
+import { MAX_DEFAULT_N, type Task, loadConfig, runEngine } from "@frites/core";
 import { WorktreeManager } from "@frites/isolation";
 import {
   buildEngineDeps,
@@ -27,7 +27,7 @@ server.registerTool(
     inputSchema: {
       task: z.string().describe("What to implement or fix"),
       repoPath: z.string().describe("Absolute path to the target git repository"),
-      n: z.number().int().min(1).max(5).optional().describe("Number of agents"),
+      n: z.number().int().min(1).max(MAX_DEFAULT_N).optional().describe("Number of agents"),
       agents: z
         .string()
         .optional()

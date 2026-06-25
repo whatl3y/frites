@@ -32,6 +32,28 @@ export interface Task {
 
 export type CandidateStatus = "succeeded" | "empty" | "errored" | "timed-out";
 
+export type BackendFailureKind =
+  | "rate-limit"
+  | "usage-limit"
+  | "quota-exceeded"
+  | "auth"
+  | "context-length"
+  | "backend-overloaded"
+  | "cancelled"
+  | "unknown";
+
+export interface BackendFailure {
+  kind: BackendFailureKind;
+  provider?: ChildKind;
+  message: string;
+  statusCode?: number;
+  limitType?: string;
+  rawStatus?: string;
+  resetAt?: number;
+  resetAtIso?: string;
+  retryAfterSeconds?: number;
+}
+
 export interface Candidate {
   agentId: string;
   kind: ChildKind;
@@ -45,6 +67,7 @@ export interface Candidate {
   /** Final assistant message / summary emitted by the agent, if any. */
   summary?: string;
   error?: string;
+  backendFailure?: BackendFailure;
   logPath?: string;
   costUsd?: number;
   /**

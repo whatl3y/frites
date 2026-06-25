@@ -99,4 +99,67 @@ describe("runActionCouncil", () => {
     expect(synthCalled).toBe(false);
     expect(r.action).toEqual({ kind: "answer", text: "ok" });
   });
+
+  it("falls back to a surviving proposal when action synthesis fails", async () => {
+    const config = resolveConfig({
+      fanOutPolicy: "always",
+      defaultN: 2,
+      defaultAgents: [
+        { id: "a", kind: "claude-cli" },
+        { id: "b", kind: "codex-cli" },
+      ],
+    });
+    const complete = async (_p: string, ctx: { role: "child" | "synth"; index: number }) => {
+      if (ctx.role === "synth") throw new Error("Claude backend usage limit hit");
+      if (ctx.index === 0) throw new Error("Claude backend usage limit hit");
+      return '{"kind":"tool","name":"Read","input":{"file_path":"x"}}';
+    };
+
+    const r = await runActionCouncil("do the task", tools, { complete, config });
+    expect(r.action).toMatchObject({ kind: "tool", name: "Read" });
+    expect(r.proposals[0]).toMatchObject({ kind: "answer" });
+  });
+
+  it("prefers a surviving answer proposal over tool proposals when synthesis fails", async () => {
+    const config = resolveConfig({
+      fanOutPolicy: "always",
+      defaultN: 2,
+      defaultAgents: [
+        { id: "a", kind: "claude-cli" },
+        { id: "b", kind: "codex-cli" },
+      ],
+    });
+    const complete = async (_p: string, ctx: { role: "child" | "synth"; index: number }) => {
+      if (ctx.role === "synth") throw new Error("backend overloaded");
+      if (ctx.index === 0) return '{"kind":"tool","name":"Bash","input":{"command":"rm -rf x"}}';
+      return '{"kind":"answer","text":"the answer"}';
+    };
+
+    const r = await runActionCouncil("do the task", tools, { complete, config });
+    // Must NOT execute the unvetted Bash proposal; the side-effect-free answer wins.
+    expect(r.action).toEqual({ kind: "answer", text: "the answer" });
+  });
+
+  it("fails the turn rather than run an unvetted tool when multiple tool proposals survive a synth failure", async () => {
+    const config = resolveConfig({
+      fanOutPolicy: "always",
+      defaultN: 2,
+      defaultAgents: [
+        { id: "a", kind: "claude-cli" },
+        { id: "b", kind: "codex-cli" },
+      ],
+    });
+    const complete = async (_p: string, ctx: { role: "child" | "synth"; index: number }) => {
+      if (ctx.role === "synth") throw new Error("backend overloaded");
+      if (ctx.index === 0) return '{"kind":"tool","name":"Bash","input":{"command":"rm -rf x"}}';
+      return '{"kind":"tool","name":"Write","input":{"file_path":"y","contents":"z"}}';
+    };
+
+    const r = await runActionCouncil("do the task", tools, { complete, config });
+    expect(r.action.kind).toBe("answer");
+    if (r.action.kind === "answer") {
+      expect(r.action.text).toContain("declined to run");
+      expect(r.action.text).not.toContain("rm -rf");
+    }
+  });
 });

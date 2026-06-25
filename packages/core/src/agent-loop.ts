@@ -138,6 +138,52 @@ export function looksToolShaped(raw: string): boolean {
   return /"kind"\s*:\s*"tool"/.test(raw);
 }
 
+function childFailureAction(index: number, error: unknown): AgentAction {
+  return {
+    kind: "answer",
+    text: `(agent ${index + 1} failed: ${error instanceof Error ? error.message : String(error)})`,
+  };
+}
+
+function isFailureAction(action: AgentAction): boolean {
+  return action.kind === "answer" && /^\(agent \d+ failed:/.test(action.text.trim());
+}
+
+/**
+ * Pick the action to use when synthesis throws. The synthesizer is the only step that vets/adjudicates
+ * the children's tool proposals, so on its failure we must not blindly execute one: prefer a
+ * side-effect-free answer proposal; accept a bare tool proposal ONLY when it's the sole survivor
+ * (effectively a single-agent turn). With multiple competing, unadjudicated tool proposals we fail the
+ * turn rather than fire an unreviewed (possibly destructive) tool chosen by mere array order.
+ */
+function safeFallbackAction(proposals: AgentAction[], synthError: unknown): AgentAction {
+  const survivors = proposals.filter((p) => !isFailureAction(p));
+  const answerSurvivor = survivors.find((p) => p.kind === "answer");
+  if (answerSurvivor) return answerSurvivor;
+  if (survivors.length === 1) return survivors[0]!;
+  const detail = synthError instanceof Error ? synthError.message : String(synthError);
+  return {
+    kind: "answer",
+    text: `frites could not synthesize the next action and declined to run one of ${survivors.length} competing, unvetted tool proposals. Synthesis failed: ${detail}`,
+  };
+}
+
+function allChildrenFailedAction(proposals: AgentAction[], synthError?: unknown): AgentAction {
+  const detail = proposals
+    .map((a, i) => {
+      const text = a.kind === "answer" ? a.text : JSON.stringify(a);
+      return `- agent ${i + 1}: ${text.replace(/^\(agent \d+ failed:\s*/, "").replace(/\)$/, "")}`;
+    })
+    .join("\n");
+  const synth = synthError
+    ? ` Synthesis also failed: ${synthError instanceof Error ? synthError.message : String(synthError)}`
+    : "";
+  return {
+    kind: "answer",
+    text: `frites could not choose the next action because all ${proposals.length} agents failed before producing a usable proposal.${synth}\n\n${detail}`,
+  };
+}
+
 // ── prompts ─────────────────────────────────────────────────────────────────
 
 function toolsSummary(tools: ToolDef[]): string {
@@ -256,19 +302,25 @@ export async function runActionCouncil(
       deps
         .complete(childActionPrompt(transcript, tools, deps.config.childDirective), { role: "child", index: i })
         .then((raw) => tryParseAction(raw, toolNames) ?? parseAction(raw))
-        .catch(
-          (e): AgentAction => ({
-            kind: "answer",
-            text: `(agent ${i + 1} failed: ${e instanceof Error ? e.message : String(e)})`,
-          }),
-        ),
+        .catch((e): AgentAction => childFailureAction(i, e)),
     ),
   );
 
+  if (proposals.every(isFailureAction)) {
+    log("all agents failed before action synthesis");
+    return { action: allChildrenFailedAction(proposals), fannedOut: true, decision, proposals };
+  }
+
   log("synthesizing action");
-  const action = await resolveFinal(synthActionPrompt(transcript, tools, proposals), {
-    role: "synth",
-    index: -1,
-  });
+  let action: AgentAction;
+  try {
+    action = await resolveFinal(synthActionPrompt(transcript, tools, proposals), {
+      role: "synth",
+      index: -1,
+    });
+  } catch (e) {
+    log(`action synthesis failed; choosing a safe fallback (${e instanceof Error ? e.message : String(e)})`);
+    action = safeFallbackAction(proposals, e);
+  }
   return { action, fannedOut: true, decision, proposals };
 }

@@ -39,7 +39,7 @@ The engine never imports git or a CLI directly. Instead `EngineDeps` is satisfie
 
 ### Flow
 
-1. **Select agents.** `selectAgents` uses `task.agents` if present, else clones `config.defaultAgents` up to `n` (capped 1-5), suffixing duplicate ids.
+1. **Select agents.** `selectAgents` uses `task.agents` if present, else clones `config.defaultAgents` up to `n` (capped 1-10), suffixing duplicate ids.
 2. **Resolve base.** `worktrees.resolveBase` pins the base ref and SHA every worktree branches from.
 3. **Dispatch + execute (concurrent).** Each agent gets its own worktree (created and registered before the prompt runs, so the `finally` always reaps it), runs `runAgent`, and has its diff captured into a `Candidate`. A candidate's status becomes `empty` when it succeeded but touched no files.
 4. **Oracle-filter (concurrent).** Each succeeded candidate is run through `runOracle`. With no executable oracle, candidates carry `hadOracle: false`.

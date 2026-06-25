@@ -29,7 +29,7 @@ The engine declares its dependencies as structural interfaces in `EngineDeps`, s
 `selectAgents(task, config)` resolves the agent roster:
 
 - If the task supplies `agents`, they are used as-is.
-- Otherwise it takes `config.defaultAgents` and round-robins to `n` specs, where `n = max(1, min(task.n ?? config.defaultN, 5))` (capped at 5). Indices past the base array get a suffixed id (e.g. `claude-1-2`).
+- Otherwise it takes `config.defaultAgents` and round-robins to `n` specs, where `n = max(1, min(task.n ?? config.defaultN, 10))` (capped at 10). Indices past the base array get a suffixed id (e.g. `claude-1-2`).
 
 Each agent runs concurrently via `Promise.all` over `runOneAgent`. `runOneAgent` creates the worktree, registers its handle in `handles` immediately (so cleanup always covers it), emits `agent-started`, runs the child with a prompt from `buildPrompt`, then calls `captureDiff`. A candidate is `succeeded` only when the child exited succeeded AND touched at least one file; otherwise `empty`, `errored`, or `timed-out`.
 
